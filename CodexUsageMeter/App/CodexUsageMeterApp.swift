@@ -23,26 +23,27 @@ private struct StatusBarLabelView: View {
     let snapshot: CodexRateLimitSnapshot?
 
     var body: some View {
-        HStack(spacing: 6) {
-            Image(systemName: symbolName)
-                .imageScale(.small)
-
-            Text(title)
-                .font(.system(size: 12, weight: .semibold, design: .rounded))
-                .monospacedDigit()
-
-            ActivityBadge(status: snapshot?.activityStatus ?? .done)
-            PermissionBadge(needsPermission: snapshot?.needsPermission ?? false)
-        }
+        titleText
+            .font(.system(size: 12, weight: .semibold, design: .rounded))
+            .monospacedDigit()
         .help(helpText)
     }
 
-    private var title: String {
-        guard let snapshot else { return "--% --%" }
+    private var titleText: Text {
+        guard let snapshot else {
+            return Text(Image(systemName: "gauge.with.dots.needle.0percent")) + Text(" --% --%")
+        }
 
         let primary = snapshot.primary.remainingPercentString
         let secondary = snapshot.secondary?.remainingPercentString ?? "--%"
-        return "\(primary) \(secondary)"
+        return Text(Image(systemName: symbolName))
+            + Text(" \(primary) \(secondary)")
+            + Text(" ")
+            + Text(Image(systemName: "capsule.portrait.fill"))
+            + Text(snapshot.activityStatus == .working ? "WORK" : "DONE")
+            + Text(" ")
+            + Text(Image(systemName: snapshot.needsPermission ? "octagon.fill" : "octagon"))
+            + Text(snapshot.needsPermission ? "?" : "")
     }
 
     private var symbolName: String {
@@ -67,43 +68,5 @@ private struct StatusBarLabelView: View {
         let activity = snapshot.activityStatus == .working ? "working" : "done"
         let permission = snapshot.needsPermission ? "needs permission" : "does not need permission"
         return "Remaining Codex limits: \(snapshot.primary.remainingPercentString) short window, \(secondary) long window. Codex is \(activity) and currently \(permission)."
-    }
-}
-
-private struct ActivityBadge: View {
-    let status: CodexRateLimitSnapshot.ActivityStatus
-
-    var body: some View {
-        Text(status.label)
-            .font(.system(size: 8, weight: .bold, design: .rounded))
-            .foregroundStyle(foregroundColor)
-            .padding(.horizontal, 5)
-            .padding(.vertical, 2)
-            .background(backgroundColor, in: Capsule(style: .continuous))
-    }
-
-    private var foregroundColor: Color {
-        status == .working ? .orange : .green
-    }
-
-    private var backgroundColor: Color {
-        status == .working ? Color.orange.opacity(0.16) : Color.green.opacity(0.16)
-    }
-}
-
-private struct PermissionBadge: View {
-    let needsPermission: Bool
-
-    var body: some View {
-        ZStack {
-            Image(systemName: "octagon.fill")
-                .font(.system(size: 13, weight: .semibold))
-                .foregroundStyle(needsPermission ? Color.red.opacity(0.9) : Color.secondary.opacity(0.35))
-
-            Text("?")
-                .font(.system(size: 8, weight: .black, design: .rounded))
-                .foregroundStyle(.white)
-                .offset(y: -0.25)
-        }
     }
 }
