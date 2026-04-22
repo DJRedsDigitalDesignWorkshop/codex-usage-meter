@@ -9,7 +9,6 @@ STAGING_DIR="$DIST_DIR/dmg-staging"
 APP_NAME="Codex Usage Meter.app"
 APP_PATH="$DERIVED_DATA_DIR/Build/Products/Release/$APP_NAME"
 SIGN_IDENTITY="${CODE_SIGN_IDENTITY:--}"
-ENTITLEMENTS_PATH="$ROOT_DIR/CodexUsageMeter/CodexUsageMeter.entitlements"
 
 sign_app() {
   local app_path="$1"
@@ -26,7 +25,6 @@ sign_app() {
       --sign - \
       --timestamp=none \
       --identifier "$bundle_identifier" \
-      --entitlements "$ENTITLEMENTS_PATH" \
       "$app_path"
   else
     /usr/bin/codesign \
@@ -35,7 +33,6 @@ sign_app() {
       --options runtime \
       --sign "$SIGN_IDENTITY" \
       --timestamp \
-      --entitlements "$ENTITLEMENTS_PATH" \
       "$app_path"
   fi
 

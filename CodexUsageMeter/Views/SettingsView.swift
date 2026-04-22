@@ -27,15 +27,9 @@ struct SettingsView: View {
                     .font(.footnote)
                     .foregroundStyle(.secondary)
 
-                if AppPreferences.usesSecurityScopedBookmark {
-                    Text("A read-only folder permission has been stored for the selected sessions directory.")
-                        .font(.footnote)
-                        .foregroundStyle(.secondary)
-                } else {
-                    Text("If you run a sandboxed public build, choose the Codex sessions folder once so the app can keep reading local usage snapshots.")
-                        .font(.footnote)
-                        .foregroundStyle(.secondary)
-                }
+                Text("Choose a different folder only if your Codex session logs live outside the default location.")
+                    .font(.footnote)
+                    .foregroundStyle(.secondary)
 
                 HStack {
                     Button("Choose Folder…") {
@@ -43,7 +37,7 @@ struct SettingsView: View {
                     }
 
                     Button("Use Default") {
-                        AppPreferences.restoreDefaultSessionsDirectory()
+                        UserDefaults.standard.set(AppPreferences.defaultSessionsDirectoryURL.path, forKey: AppPreferences.sessionsDirectoryKey)
                         sessionsDirectoryPath = AppPreferences.defaultSessionsDirectoryURL.path
                         sourceError = nil
                         monitor.reloadTimer()
@@ -73,14 +67,6 @@ struct SettingsView: View {
             Section("Status") {
                 if let snapshot = monitor.snapshot {
                     LabeledContent("Menu bar text", value: "\(snapshot.primary.remainingPercentString) \(snapshot.secondary?.remainingPercentString ?? "--%")")
-                    LabeledContent("Short window remaining", value: snapshot.primary.remainingPercentString)
-                    LabeledContent("Short window used", value: snapshot.primary.usedPercentString)
-
-                    if let secondary = snapshot.secondary {
-                        LabeledContent("Long window remaining", value: secondary.remainingPercentString)
-                        LabeledContent("Long window used", value: secondary.usedPercentString)
-                    }
-
                     LabeledContent("Plan", value: snapshot.planType.capitalized)
                     LabeledContent("Last update", value: snapshot.freshnessDescription)
                 } else {
@@ -112,13 +98,9 @@ struct SettingsView: View {
 
         guard panel.runModal() == .OK, let url = panel.url else { return }
 
-        do {
-            try AppPreferences.storeSessionsDirectoryAccess(url)
-            sessionsDirectoryPath = url.path
-            sourceError = nil
-        } catch {
-            sourceError = "Could not save folder access: \(error.localizedDescription)"
-        }
+        UserDefaults.standard.set(url.path, forKey: AppPreferences.sessionsDirectoryKey)
+        sessionsDirectoryPath = url.path
+        sourceError = nil
 
         monitor.reloadTimer()
         monitor.refresh()

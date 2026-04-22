@@ -57,8 +57,6 @@ That creates both a `.zip` and a drag-to-Applications `.dmg` in `dist/`.
 
 By default, the packaging script applies an ad-hoc bundle signature so the app is packaged as a proper macOS bundle instead of an invalid unsigned artifact.
 
-The app is sandboxed for public distribution and can store a read-only security-scoped bookmark for the sessions folder you choose in Settings.
-
 If you have a Developer ID Application certificate installed, you can build a stronger public release by setting `CODE_SIGN_IDENTITY` before packaging:
 
 ```bash

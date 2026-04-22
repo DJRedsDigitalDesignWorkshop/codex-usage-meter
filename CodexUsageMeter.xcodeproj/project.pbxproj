@@ -29,7 +29,6 @@
 
 /* Begin PBXFileReference section */
 		0C8D62BD3BB988BD7528DE8E /* CodexSessionScanner.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CodexSessionScanner.swift; sourceTree = "<group>"; };
-		3F3D47D9D02FE29205C94788 /* CodexUsageMeter.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = CodexUsageMeter.entitlements; sourceTree = "<group>"; };
 		46443A4E46D3BEDBDEDA1D32 /* SettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsView.swift; sourceTree = "<group>"; };
 		656BC85433D00646B6839C32 /* CodexUsageMeterApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CodexUsageMeterApp.swift; sourceTree = "<group>"; };
 		6827C2134346122FCB17D3CD /* CodexSessionScannerTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CodexSessionScannerTests.swift; sourceTree = "<group>"; };
@@ -90,7 +89,6 @@
 		9B65F70A6E76750E96BA061E /* CodexUsageMeter */ = {
 			isa = PBXGroup;
 			children = (
-				3F3D47D9D02FE29205C94788 /* CodexUsageMeter.entitlements */,
 				F1663378C00553F4ED0329D4 /* App */,
 				730BB69F3C9D7C5068DC4E2F /* Models */,
 				9082475A1B5409FFA72F67B9 /* Resources */,
@@ -262,8 +260,7 @@
 			isa = XCBuildConfiguration;
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
-				CODE_SIGN_ENTITLEMENTS = CodexUsageMeter/CodexUsageMeter.entitlements;
-				ENABLE_APP_SANDBOX = YES;
+				ENABLE_APP_SANDBOX = NO;
 				INFOPLIST_FILE = CodexUsageMeter/Resources/Info.plist;
 				MACOSX_DEPLOYMENT_TARGET = 14.0;
 				PRODUCT_MODULE_NAME = CodexUsageMeter;
@@ -276,10 +273,10 @@
 			buildSettings = {
 				ALWAYS_SEARCH_USER_PATHS = NO;
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 1;
+				CURRENT_PROJECT_VERSION = 2;
 				DEVELOPMENT_TEAM = "";
 				GENERATE_INFOPLIST_FILE = NO;
-				MARKETING_VERSION = 1.0.0;
+				MARKETING_VERSION = 1.0.1;
 				PRODUCT_BUNDLE_IDENTIFIER = io.github.codexusagemeter;
 				SDKROOT = macosx;
 				SWIFT_VERSION = 6.0;
@@ -290,8 +287,7 @@
 			isa = XCBuildConfiguration;
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
-				CODE_SIGN_ENTITLEMENTS = CodexUsageMeter/CodexUsageMeter.entitlements;
-				ENABLE_APP_SANDBOX = YES;
+				ENABLE_APP_SANDBOX = NO;
 				INFOPLIST_FILE = CodexUsageMeter/Resources/Info.plist;
 				MACOSX_DEPLOYMENT_TARGET = 14.0;
 				PRODUCT_MODULE_NAME = CodexUsageMeter;
@@ -304,10 +300,10 @@
 			buildSettings = {
 				ALWAYS_SEARCH_USER_PATHS = NO;
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 1;
+				CURRENT_PROJECT_VERSION = 2;
 				DEVELOPMENT_TEAM = "";
 				GENERATE_INFOPLIST_FILE = NO;
-				MARKETING_VERSION = 1.0.0;
+				MARKETING_VERSION = 1.0.1;
 				PRODUCT_BUNDLE_IDENTIFIER = io.github.codexusagemeter;
 				SDKROOT = macosx;
 				SWIFT_VERSION = 6.0;
