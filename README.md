@@ -1,3 +1,4 @@
+<img width="464" height="570" alt="Screenshot " src="https://github.com/user-attachments/assets/4f36ffa9-1d20-40fa-96de-be05a96708fa" />
 # Codex Usage Meter
 
 Codex Usage Meter is a native macOS menu bar app that keeps your remaining Codex rate limits visible at all times.
