@@ -1,0 +1,27 @@
+name: Build
+
+on:
+  push:
+    branches:
+      - main
+      - codex/**
+  pull_request:
+
+jobs:
+  build:
+    runs-on: macos-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install XcodeGen
+        run: brew install xcodegen
+
+      - name: Generate Project
+        run: xcodegen generate
+
+      - name: Build
+        run: /Applications/Xcode.app/Contents/Developer/usr/bin/xcodebuild -project CodexUsageMeter.xcodeproj -scheme CodexUsageMeter -configuration Debug CODE_SIGNING_ALLOWED=NO build
+
+      - name: Test
+        run: /Applications/Xcode.app/Contents/Developer/usr/bin/xcodebuild -project CodexUsageMeter.xcodeproj -scheme CodexUsageMeter -destination 'platform=macOS' CODE_SIGNING_ALLOWED=NO test
