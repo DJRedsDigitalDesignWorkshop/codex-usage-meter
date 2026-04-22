@@ -102,16 +102,22 @@ private struct LimitCardView: View {
 
                 Spacer()
 
-                Text(window.remainingPercentString)
-                    .font(.system(size: 28, weight: .semibold, design: .rounded))
-                    .monospacedDigit()
+                VStack(alignment: .trailing, spacing: 2) {
+                    Text(window.remainingPercentString)
+                        .font(.system(size: 28, weight: .semibold, design: .rounded))
+                        .monospacedDigit()
+
+                    Text("remaining")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
             }
 
-            ProgressView(value: window.progressValue)
+            ProgressView(value: window.remainingProgressValue)
                 .tint(progressTint)
 
             HStack {
-                Label("Used \(Int(window.usedPercent.rounded()))%", systemImage: "chart.bar.fill")
+                Label("Used \(window.usedPercentString)", systemImage: "chart.bar.fill")
                 Spacer()
                 Label(resetText, systemImage: "timer")
             }
@@ -123,10 +129,10 @@ private struct LimitCardView: View {
     }
 
     private var progressTint: Color {
-        switch window.usedPercent {
-        case ..<50:
+        switch window.remainingPercent {
+        case 80...:
             return .green
-        case ..<80:
+        case 50..<80:
             return .orange
         default:
             return .red

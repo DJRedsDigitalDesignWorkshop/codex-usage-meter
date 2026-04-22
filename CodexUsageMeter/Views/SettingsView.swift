@@ -73,6 +73,14 @@ struct SettingsView: View {
             Section("Status") {
                 if let snapshot = monitor.snapshot {
                     LabeledContent("Menu bar text", value: "\(snapshot.primary.remainingPercentString) \(snapshot.secondary?.remainingPercentString ?? "--%")")
+                    LabeledContent("Short window remaining", value: snapshot.primary.remainingPercentString)
+                    LabeledContent("Short window used", value: snapshot.primary.usedPercentString)
+
+                    if let secondary = snapshot.secondary {
+                        LabeledContent("Long window remaining", value: secondary.remainingPercentString)
+                        LabeledContent("Long window used", value: secondary.usedPercentString)
+                    }
+
                     LabeledContent("Plan", value: snapshot.planType.capitalized)
                     LabeledContent("Last update", value: snapshot.freshnessDescription)
                 } else {

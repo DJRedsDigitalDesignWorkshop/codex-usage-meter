@@ -14,8 +14,16 @@ public struct CodexRateLimitSnapshot: Equatable {
             "\(Int(remainingPercent.rounded()))%"
         }
 
+        public var usedPercentString: String {
+            "\(Int(usedPercent.rounded()))%"
+        }
+
         public var progressValue: Double {
             min(max(usedPercent / 100, 0), 1)
+        }
+
+        public var remainingProgressValue: Double {
+            min(max(remainingPercent / 100, 0), 1)
         }
 
         public var windowTitle: String {
