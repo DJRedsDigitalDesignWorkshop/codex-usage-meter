@@ -40,9 +40,11 @@ private struct StatusBarLabelView: View {
         let activityColor: Color = snapshot.activityStatus == .working ? Color(nsColor: .systemRed) : Color(nsColor: .systemGreen)
         let permissionIcon = snapshot.needsPermission ? "questionmark.circle.fill" : "questionmark.circle"
         let permissionColor: Color = snapshot.needsPermission ? Color(nsColor: .systemOrange) : .secondary
+        let throughput = snapshot.compactTokensPerSecondString
 
         return Text(Image(systemName: symbolName))
             + Text(" \(primary) \(secondary)")
+            + Text(throughput.map { " \($0)" } ?? "").foregroundStyle(.secondary)
             + Text("  ")
             + Text(Image(systemName: activityIcon)).foregroundStyle(activityColor)
             + Text(" \(snapshot.activityStatus.label)").foregroundStyle(.secondary)
@@ -71,6 +73,7 @@ private struct StatusBarLabelView: View {
         let secondary = snapshot.secondary?.remainingPercentString ?? "--%"
         let activity = snapshot.activityStatus == .working ? "working" : "done"
         let permission = snapshot.needsPermission ? "needs permission" : "does not need permission"
-        return "Remaining Codex limits: \(snapshot.primary.remainingPercentString) short window, \(secondary) long window. Codex is \(activity) and currently \(permission)."
+        let speed = snapshot.compactTokensPerSecondString ?? "no recent throughput estimate"
+        return "Remaining Codex limits: \(snapshot.primary.remainingPercentString) short window, \(secondary) long window. Recent Codex speed: \(speed). Codex is \(activity) and currently \(permission)."
     }
 }

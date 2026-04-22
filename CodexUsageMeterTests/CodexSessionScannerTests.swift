@@ -36,6 +36,7 @@ struct CodexSessionScannerTests {
         #expect(snapshot.secondary?.usedPercent == 7.0)
         #expect(snapshot.activityStatus == .done)
         #expect(snapshot.needsPermission == false)
+        #expect(snapshot.estimatedTokensPerSecond == nil)
         #expect(snapshot.sourceFile.lastPathComponent == "rollout-newer.jsonl")
     }
 
@@ -58,6 +59,28 @@ struct CodexSessionScannerTests {
 
         #expect(snapshot.activityStatus == .working)
         #expect(snapshot.needsPermission == true)
+    }
+
+    @Test
+    func derivesRecentTokensPerSecondFromTokenCountEvents() throws {
+        let fileManager = FileManager.default
+        let root = fileManager.temporaryDirectory.appendingPathComponent(UUID().uuidString, isDirectory: true)
+        try fileManager.createDirectory(at: root, withIntermediateDirectories: true)
+
+        let file = root.appendingPathComponent("rollout-throughput.jsonl")
+
+        try """
+        {"timestamp":"2026-04-22T14:00:00.000Z","type":"event_msg","payload":{"type":"task_started","turn_id":"turn-1"}}
+        {"timestamp":"2026-04-22T14:00:02.000Z","type":"event_msg","payload":{"type":"token_count","info":{"total_token_usage":{"total_tokens":1000}}}}
+        {"timestamp":"2026-04-22T14:00:06.000Z","type":"event_msg","payload":{"type":"token_count","info":{"total_token_usage":{"total_tokens":3000}}}}
+        {"timestamp":"2026-04-22T14:00:07.000Z","payload":{"rate_limits":{"primary":{"used_percent":25.0,"window_minutes":300,"resets_at":1776870000},"secondary":{"used_percent":10.0,"window_minutes":10080,"resets_at":1777470000},"plan_type":"plus"}}}
+        """.write(to: file, atomically: true, encoding: .utf8)
+
+        let scanner = CodexSessionScanner(fileManager: fileManager)
+        let snapshot = try scanner.latestSnapshot(in: root)
+
+        #expect(snapshot.estimatedTokensPerSecond == 500)
+        #expect(snapshot.tokensPerSecondString == "500/s")
     }
 
     @Test

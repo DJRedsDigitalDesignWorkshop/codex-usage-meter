@@ -3,12 +3,19 @@ import Foundation
 public struct CodexSessionStatus: Equatable {
     public let activityStatus: CodexRateLimitSnapshot.ActivityStatus
     public let needsPermission: Bool
+    public let estimatedTokensPerSecond: Double?
 }
 
 public struct CodexSessionScanner {
     private struct SessionIndicators {
         let activityStatus: CodexRateLimitSnapshot.ActivityStatus
         let needsPermission: Bool
+        let estimatedTokensPerSecond: Double?
+    }
+
+    private struct TokenUsageSample {
+        let timestamp: Date
+        let totalTokens: Double
     }
 
     public enum ScannerError: LocalizedError {
@@ -27,6 +34,8 @@ public struct CodexSessionScanner {
 
     private let fileManager: FileManager
     private let decoder: JSONDecoder
+    private let fractionalTimestampFormatter: ISO8601DateFormatter
+    private let basicTimestampFormatter: ISO8601DateFormatter
 
     public init(fileManager: FileManager = .default) {
         self.fileManager = fileManager
@@ -54,6 +63,14 @@ public struct CodexSessionScanner {
             )
         }
         self.decoder = decoder
+
+        let fractionalFormatter = ISO8601DateFormatter()
+        fractionalFormatter.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
+        self.fractionalTimestampFormatter = fractionalFormatter
+
+        let basicFormatter = ISO8601DateFormatter()
+        basicFormatter.formatOptions = [.withInternetDateTime]
+        self.basicTimestampFormatter = basicFormatter
     }
 
     public func latestSnapshot(
@@ -70,7 +87,7 @@ public struct CodexSessionScanner {
 
         for fileURL in candidateFiles {
             let indicators = if fileURL == candidateFiles.first {
-                latestIndicators ?? SessionIndicators(activityStatus: .done, needsPermission: false)
+                latestIndicators ?? SessionIndicators(activityStatus: .done, needsPermission: false, estimatedTokensPerSecond: nil)
             } else {
                 try sessionIndicators(inFile: fileURL, tailByteCount: tailByteCount)
             }
@@ -102,7 +119,8 @@ public struct CodexSessionScanner {
         let indicators = try sessionIndicators(inFile: latestFile, tailByteCount: tailByteCount)
         return CodexSessionStatus(
             activityStatus: indicators.activityStatus,
-            needsPermission: indicators.needsPermission
+            needsPermission: indicators.needsPermission,
+            estimatedTokensPerSecond: indicators.estimatedTokensPerSecond
         )
     }
 
@@ -163,6 +181,7 @@ public struct CodexSessionScanner {
                 },
                 activityStatus: indicators.activityStatus,
                 needsPermission: indicators.needsPermission,
+                estimatedTokensPerSecond: indicators.estimatedTokensPerSecond,
                 sourceFile: fileURL
             )
         }
@@ -173,11 +192,12 @@ public struct CodexSessionScanner {
     private func sessionIndicators(inFile fileURL: URL, tailByteCount: Int) throws -> SessionIndicators {
         let data = try tailData(for: fileURL, byteCount: tailByteCount)
         guard let rawText = String(data: data, encoding: .utf8) else {
-            return SessionIndicators(activityStatus: .done, needsPermission: false)
+            return SessionIndicators(activityStatus: .done, needsPermission: false, estimatedTokensPerSecond: nil)
         }
 
         var latestActivityStatus = CodexRateLimitSnapshot.ActivityStatus.done
         var pendingApprovalCalls: Set<String> = []
+        var tokenSamples: [TokenUsageSample] = []
 
         for line in rawText.split(separator: "\n") {
             guard
@@ -189,6 +209,7 @@ public struct CodexSessionScanner {
             }
 
             let payload = object["payload"] as? [String: Any]
+            let timestamp = parsedTimestamp(from: object)
 
             if recordType == "event_msg", let payloadType = payload?["type"] as? String {
                 switch payloadType {
@@ -196,6 +217,17 @@ public struct CodexSessionScanner {
                     latestActivityStatus = .working
                 case "task_complete":
                     latestActivityStatus = .done
+                case "token_count":
+                    if
+                        let timestamp,
+                        let totalTokens = nestedDouble(in: payload, path: ["info", "total_token_usage", "total_tokens"])
+                    {
+                        tokenSamples.append(TokenUsageSample(timestamp: timestamp, totalTokens: totalTokens))
+
+                        if tokenSamples.count > 4 {
+                            tokenSamples.removeFirst(tokenSamples.count - 4)
+                        }
+                    }
                 default:
                     break
                 }
@@ -222,8 +254,51 @@ public struct CodexSessionScanner {
 
         return SessionIndicators(
             activityStatus: latestActivityStatus,
-            needsPermission: !pendingApprovalCalls.isEmpty
+            needsPermission: !pendingApprovalCalls.isEmpty,
+            estimatedTokensPerSecond: estimatedTokensPerSecond(from: tokenSamples)
         )
+    }
+
+    private func estimatedTokensPerSecond(from tokenSamples: [TokenUsageSample]) -> Double? {
+        guard tokenSamples.count >= 2 else { return nil }
+
+        let recentSamples = Array(tokenSamples.suffix(2))
+        let older = recentSamples[0]
+        let newer = recentSamples[1]
+        let duration = newer.timestamp.timeIntervalSince(older.timestamp)
+        let tokenDelta = newer.totalTokens - older.totalTokens
+
+        guard duration > 0, tokenDelta >= 0 else { return nil }
+        return tokenDelta / duration
+    }
+
+    private func parsedTimestamp(from object: [String: Any]) -> Date? {
+        guard let value = object["timestamp"] as? String else { return nil }
+        return fractionalTimestampFormatter.date(from: value) ?? basicTimestampFormatter.date(from: value)
+    }
+
+    private func nestedDouble(in dictionary: [String: Any]?, path: [String]) -> Double? {
+        guard let dictionary else { return nil }
+
+        var current: Any = dictionary
+        for key in path {
+            guard let next = (current as? [String: Any])?[key] else { return nil }
+            current = next
+        }
+
+        if let value = current as? Double {
+            return value
+        }
+
+        if let value = current as? Int {
+            return Double(value)
+        }
+
+        if let value = current as? NSNumber {
+            return value.doubleValue
+        }
+
+        return nil
     }
 
     private func tailData(for fileURL: URL, byteCount: Int) throws -> Data {

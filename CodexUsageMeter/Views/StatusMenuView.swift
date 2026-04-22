@@ -26,6 +26,7 @@ struct StatusMenuView: View {
                         snapshot.needsPermission ? "Waiting for permission" : "No permission needed",
                         systemImage: snapshot.needsPermission ? "questionmark" : "hand.raised.slash"
                     )
+                    Label("Recent speed \(snapshot.tokensPerSecondString)", systemImage: "speedometer")
                     Label("Updated \(snapshot.freshnessDescription)", systemImage: "clock.arrow.circlepath")
                     Label(snapshot.sourceFile.lastPathComponent, systemImage: "doc.text")
                         .lineLimit(2)
