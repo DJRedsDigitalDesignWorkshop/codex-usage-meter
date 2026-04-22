@@ -20,8 +20,6 @@ targets:
     type: application
     platform: macOS
     deploymentTarget: "14.0"
-    info:
-      path: CodexUsageMeter/Resources/Info.plist
     settings:
       base:
         PRODUCT_NAME: Codex Usage Meter
