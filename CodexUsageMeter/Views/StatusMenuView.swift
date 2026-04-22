@@ -20,7 +20,7 @@ struct StatusMenuView: View {
                     Label(snapshot.planType.capitalized, systemImage: "person.crop.circle.badge.checkmark")
                     Label(
                         "Codex \(snapshot.activityStatus.label.lowercased())",
-                        systemImage: snapshot.activityStatus == .working ? "capsule.portrait.fill" : "checkmark.circle.fill"
+                        systemImage: snapshot.activityStatus == .working ? "octagon.fill" : "checkmark.circle.fill"
                     )
                     Label(
                         snapshot.needsPermission ? "Waiting for permission" : "No permission needed",
