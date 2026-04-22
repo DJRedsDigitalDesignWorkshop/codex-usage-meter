@@ -34,7 +34,30 @@ struct CodexSessionScannerTests {
         #expect(snapshot.planType == "pro")
         #expect(snapshot.primary.usedPercent == 12.0)
         #expect(snapshot.secondary?.usedPercent == 7.0)
+        #expect(snapshot.activityStatus == .done)
+        #expect(snapshot.needsPermission == false)
         #expect(snapshot.sourceFile.lastPathComponent == "rollout-newer.jsonl")
+    }
+
+    @Test
+    func derivesWorkingAndPermissionStatesFromSessionEvents() throws {
+        let fileManager = FileManager.default
+        let root = fileManager.temporaryDirectory.appendingPathComponent(UUID().uuidString, isDirectory: true)
+        try fileManager.createDirectory(at: root, withIntermediateDirectories: true)
+
+        let file = root.appendingPathComponent("rollout-status.jsonl")
+
+        try """
+        {"timestamp":"2026-04-22T14:00:00.000Z","type":"event_msg","payload":{"type":"task_started","turn_id":"turn-1"}}
+        {"timestamp":"2026-04-22T14:00:01.000Z","type":"response_item","payload":{"type":"function_call","call_id":"call-1","arguments":"{\\"sandbox_permissions\\":\\"require_escalated\\",\\"justification\\":\\"Need approval\\"}"}}
+        {"timestamp":"2026-04-22T14:00:02.000Z","payload":{"rate_limits":{"primary":{"used_percent":25.0,"window_minutes":300,"resets_at":1776870000},"secondary":{"used_percent":10.0,"window_minutes":10080,"resets_at":1777470000},"plan_type":"plus"}}}
+        """.write(to: file, atomically: true, encoding: .utf8)
+
+        let scanner = CodexSessionScanner(fileManager: fileManager)
+        let snapshot = try scanner.latestSnapshot(in: root)
+
+        #expect(snapshot.activityStatus == .working)
+        #expect(snapshot.needsPermission == true)
     }
 
     @Test

@@ -30,6 +30,9 @@ private struct StatusBarLabelView: View {
             Text(title)
                 .font(.system(size: 12, weight: .semibold, design: .rounded))
                 .monospacedDigit()
+
+            ActivityBadge(status: snapshot?.activityStatus ?? .done)
+            PermissionBadge(needsPermission: snapshot?.needsPermission ?? false)
         }
         .help(helpText)
     }
@@ -61,6 +64,46 @@ private struct StatusBarLabelView: View {
         }
 
         let secondary = snapshot.secondary?.remainingPercentString ?? "--%"
-        return "Remaining Codex limits: \(snapshot.primary.remainingPercentString) short window, \(secondary) long window."
+        let activity = snapshot.activityStatus == .working ? "working" : "done"
+        let permission = snapshot.needsPermission ? "needs permission" : "does not need permission"
+        return "Remaining Codex limits: \(snapshot.primary.remainingPercentString) short window, \(secondary) long window. Codex is \(activity) and currently \(permission)."
+    }
+}
+
+private struct ActivityBadge: View {
+    let status: CodexRateLimitSnapshot.ActivityStatus
+
+    var body: some View {
+        Text(status.label)
+            .font(.system(size: 8, weight: .bold, design: .rounded))
+            .foregroundStyle(foregroundColor)
+            .padding(.horizontal, 5)
+            .padding(.vertical, 2)
+            .background(backgroundColor, in: Capsule(style: .continuous))
+    }
+
+    private var foregroundColor: Color {
+        status == .working ? .orange : .green
+    }
+
+    private var backgroundColor: Color {
+        status == .working ? Color.orange.opacity(0.16) : Color.green.opacity(0.16)
+    }
+}
+
+private struct PermissionBadge: View {
+    let needsPermission: Bool
+
+    var body: some View {
+        ZStack {
+            Image(systemName: "octagon.fill")
+                .font(.system(size: 13, weight: .semibold))
+                .foregroundStyle(needsPermission ? Color.red.opacity(0.9) : Color.secondary.opacity(0.35))
+
+            Text("?")
+                .font(.system(size: 8, weight: .black, design: .rounded))
+                .foregroundStyle(.white)
+                .offset(y: -0.25)
+        }
     }
 }

@@ -1,6 +1,20 @@
 import Foundation
 
 public struct CodexRateLimitSnapshot: Equatable {
+    public enum ActivityStatus: Equatable {
+        case working
+        case done
+
+        public var label: String {
+            switch self {
+            case .working:
+                return "WORK"
+            case .done:
+                return "DONE"
+            }
+        }
+    }
+
     public struct Window: Equatable {
         public let usedPercent: Double
         public let windowMinutes: Int
@@ -39,6 +53,8 @@ public struct CodexRateLimitSnapshot: Equatable {
     public let planType: String
     public let primary: Window
     public let secondary: Window?
+    public let activityStatus: ActivityStatus
+    public let needsPermission: Bool
     public let sourceFile: URL
 
     public var freshnessDescription: String {

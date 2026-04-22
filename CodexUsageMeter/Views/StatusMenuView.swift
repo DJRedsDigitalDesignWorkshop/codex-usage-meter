@@ -18,6 +18,14 @@ struct StatusMenuView: View {
 
                 VStack(alignment: .leading, spacing: 6) {
                     Label(snapshot.planType.capitalized, systemImage: "person.crop.circle.badge.checkmark")
+                    Label(
+                        snapshot.activityStatus == .working ? "Codex working" : "Codex done",
+                        systemImage: snapshot.activityStatus == .working ? "capsule.portrait.fill" : "checkmark.circle.fill"
+                    )
+                    Label(
+                        snapshot.needsPermission ? "Waiting for permission" : "No permission needed",
+                        systemImage: snapshot.needsPermission ? "questionmark" : "hand.raised.slash"
+                    )
                     Label("Updated \(snapshot.freshnessDescription)", systemImage: "clock.arrow.circlepath")
                     Label(snapshot.sourceFile.lastPathComponent, systemImage: "doc.text")
                         .lineLimit(2)

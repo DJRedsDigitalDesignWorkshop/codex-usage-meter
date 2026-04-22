@@ -1,6 +1,11 @@
 import Foundation
 
 public struct CodexSessionScanner {
+    private struct SessionIndicators {
+        let activityStatus: CodexRateLimitSnapshot.ActivityStatus
+        let needsPermission: Bool
+    }
+
     public enum ScannerError: LocalizedError {
         case sessionsDirectoryMissing(URL)
         case noSnapshotsFound(URL)
@@ -56,9 +61,20 @@ public struct CodexSessionScanner {
         }
 
         let candidateFiles = try recentSessionFiles(in: sessionsDirectory, limit: maximumFilesToInspect)
+        let latestIndicators = try candidateFiles.first.map { try sessionIndicators(inFile: $0, tailByteCount: tailByteCount) }
 
         for fileURL in candidateFiles {
-            if let snapshot = try latestSnapshot(inFile: fileURL, tailByteCount: tailByteCount) {
+            let indicators = if fileURL == candidateFiles.first {
+                latestIndicators ?? SessionIndicators(activityStatus: .done, needsPermission: false)
+            } else {
+                try sessionIndicators(inFile: fileURL, tailByteCount: tailByteCount)
+            }
+
+            if let snapshot = try latestSnapshot(
+                inFile: fileURL,
+                tailByteCount: tailByteCount,
+                indicators: indicators
+            ) {
                 return snapshot
             }
         }
@@ -92,7 +108,11 @@ public struct CodexSessionScanner {
             .map(\.url)
     }
 
-    private func latestSnapshot(inFile fileURL: URL, tailByteCount: Int) throws -> CodexRateLimitSnapshot? {
+    private func latestSnapshot(
+        inFile fileURL: URL,
+        tailByteCount: Int,
+        indicators: SessionIndicators
+    ) throws -> CodexRateLimitSnapshot? {
         let data = try tailData(for: fileURL, byteCount: tailByteCount)
         guard let rawText = String(data: data, encoding: .utf8) else { return nil }
 
@@ -117,11 +137,69 @@ public struct CodexSessionScanner {
                         resetsAt: Date(timeIntervalSince1970: $0.resetsAt)
                     )
                 },
+                activityStatus: indicators.activityStatus,
+                needsPermission: indicators.needsPermission,
                 sourceFile: fileURL
             )
         }
 
         return nil
+    }
+
+    private func sessionIndicators(inFile fileURL: URL, tailByteCount: Int) throws -> SessionIndicators {
+        let data = try tailData(for: fileURL, byteCount: tailByteCount)
+        guard let rawText = String(data: data, encoding: .utf8) else {
+            return SessionIndicators(activityStatus: .done, needsPermission: false)
+        }
+
+        var latestActivityStatus = CodexRateLimitSnapshot.ActivityStatus.done
+        var pendingApprovalCalls: Set<String> = []
+
+        for line in rawText.split(separator: "\n") {
+            guard
+                let data = line.data(using: .utf8),
+                let object = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+                let recordType = object["type"] as? String
+            else {
+                continue
+            }
+
+            let payload = object["payload"] as? [String: Any]
+
+            if recordType == "event_msg", let payloadType = payload?["type"] as? String {
+                switch payloadType {
+                case "task_started":
+                    latestActivityStatus = .working
+                case "task_complete":
+                    latestActivityStatus = .done
+                default:
+                    break
+                }
+            }
+
+            if recordType == "response_item", let payloadType = payload?["type"] as? String {
+                switch payloadType {
+                case "function_call":
+                    guard let callID = payload?["call_id"] as? String else { continue }
+                    let arguments = payload?["arguments"] as? String ?? ""
+                    if arguments.contains("\"sandbox_permissions\":\"require_escalated\"") ||
+                        arguments.contains("\"sandbox_permissions\": \"require_escalated\"") {
+                        pendingApprovalCalls.insert(callID)
+                    }
+                case "function_call_output":
+                    if let callID = payload?["call_id"] as? String {
+                        pendingApprovalCalls.remove(callID)
+                    }
+                default:
+                    break
+                }
+            }
+        }
+
+        return SessionIndicators(
+            activityStatus: latestActivityStatus,
+            needsPermission: !pendingApprovalCalls.isEmpty
+        )
     }
 
     private func tailData(for fileURL: URL, byteCount: Int) throws -> Data {

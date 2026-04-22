@@ -67,6 +67,8 @@ struct SettingsView: View {
             Section("Status") {
                 if let snapshot = monitor.snapshot {
                     LabeledContent("Menu bar text", value: "\(snapshot.primary.remainingPercentString) \(snapshot.secondary?.remainingPercentString ?? "--%")")
+                    LabeledContent("Codex state", value: snapshot.activityStatus == .working ? "Working" : "Done")
+                    LabeledContent("Permission state", value: snapshot.needsPermission ? "Waiting for permission" : "No permission needed")
                     LabeledContent("Plan", value: snapshot.planType.capitalized)
                     LabeledContent("Last update", value: snapshot.freshnessDescription)
                 } else {
