@@ -19,7 +19,7 @@ struct StatusMenuView: View {
                 VStack(alignment: .leading, spacing: 6) {
                     Label(snapshot.planType.capitalized, systemImage: "person.crop.circle.badge.checkmark")
                     Label(
-                        snapshot.activityStatus == .working ? "Codex working" : "Codex done",
+                        "Codex \(snapshot.activityStatus.label.lowercased())",
                         systemImage: snapshot.activityStatus == .working ? "capsule.portrait.fill" : "checkmark.circle.fill"
                     )
                     Label(

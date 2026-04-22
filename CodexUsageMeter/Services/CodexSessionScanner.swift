@@ -1,5 +1,10 @@
 import Foundation
 
+public struct CodexSessionStatus: Equatable {
+    public let activityStatus: CodexRateLimitSnapshot.ActivityStatus
+    public let needsPermission: Bool
+}
+
 public struct CodexSessionScanner {
     private struct SessionIndicators {
         let activityStatus: CodexRateLimitSnapshot.ActivityStatus
@@ -80,6 +85,25 @@ public struct CodexSessionScanner {
         }
 
         throw ScannerError.noSnapshotsFound(sessionsDirectory)
+    }
+
+    public func latestSessionStatus(
+        in sessionsDirectory: URL,
+        tailByteCount: Int = 262_144
+    ) throws -> CodexSessionStatus {
+        guard fileManager.fileExists(atPath: sessionsDirectory.path) else {
+            throw ScannerError.sessionsDirectoryMissing(sessionsDirectory)
+        }
+
+        guard let latestFile = try recentSessionFiles(in: sessionsDirectory, limit: 1).first else {
+            throw ScannerError.noSnapshotsFound(sessionsDirectory)
+        }
+
+        let indicators = try sessionIndicators(inFile: latestFile, tailByteCount: tailByteCount)
+        return CodexSessionStatus(
+            activityStatus: indicators.activityStatus,
+            needsPermission: indicators.needsPermission
+        )
     }
 
     private func recentSessionFiles(in directory: URL, limit: Int) throws -> [URL] {

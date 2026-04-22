@@ -10,10 +10,12 @@ final class RateLimitMonitor: ObservableObject {
     private let scanner: CodexSessionScanner
     private var refreshTask: Task<Void, Never>?
     private var timerCancellable: AnyCancellable?
+    private var statusTimerCancellable: AnyCancellable?
 
     init(scanner: CodexSessionScanner = CodexSessionScanner()) {
         self.scanner = scanner
         reloadTimer()
+        reloadStatusTimer()
         refresh()
     }
 
@@ -49,6 +51,47 @@ final class RateLimitMonitor: ObservableObject {
             self?.refresh()
         }
     }
+
+    func reloadStatusTimer() {
+        statusTimerCancellable?.cancel()
+        statusTimerCancellable = Timer.publish(
+            every: AppPreferences.statusRefreshInterval,
+            on: .main,
+            in: .common
+        )
+        .autoconnect()
+        .sink { [weak self] _ in
+            self?.refreshStatus()
+        }
+    }
+
+    func refreshStatus() {
+        refreshTask?.cancel()
+        refreshTask = Task { [weak self] in
+            guard let self else { return }
+
+            do {
+                let directoryURL = AppPreferences.sessionsDirectoryURL
+                let status = try scanner.latestSessionStatus(in: directoryURL)
+
+                if let snapshot {
+                    self.snapshot = CodexRateLimitSnapshot(
+                        capturedAt: snapshot.capturedAt,
+                        planType: snapshot.planType,
+                        primary: snapshot.primary,
+                        secondary: snapshot.secondary,
+                        activityStatus: status.activityStatus,
+                        needsPermission: status.needsPermission,
+                        sourceFile: snapshot.sourceFile
+                    )
+                } else {
+                    refresh()
+                }
+            } catch {
+                // Keep the last known usage snapshot if status-only polling fails transiently.
+            }
+        }
+    }
 }
 
 enum AppPreferences {
@@ -56,6 +99,7 @@ enum AppPreferences {
     static let refreshIntervalKey = "refreshInterval"
     static let defaultRefreshInterval: TimeInterval = 60
     static let allowedRefreshIntervals: [TimeInterval] = [30, 60, 120, 300]
+    static let statusRefreshInterval: TimeInterval = 5
 
     static var sessionsDirectoryURL: URL {
         if let storedPath = UserDefaults.standard.string(forKey: sessionsDirectoryKey),

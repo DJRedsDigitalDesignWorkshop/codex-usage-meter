@@ -8,9 +8,9 @@ public struct CodexRateLimitSnapshot: Equatable {
         public var label: String {
             switch self {
             case .working:
-                return "WORK"
+                return "Thinking"
             case .done:
-                return "DONE"
+                return "Done"
             }
         }
     }

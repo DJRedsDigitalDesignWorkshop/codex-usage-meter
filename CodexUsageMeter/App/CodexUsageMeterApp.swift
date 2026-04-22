@@ -36,11 +36,12 @@ private struct StatusBarLabelView: View {
 
         let primary = snapshot.primary.remainingPercentString
         let secondary = snapshot.secondary?.remainingPercentString ?? "--%"
+        let activitySymbol = snapshot.activityStatus == .working ? "capsule.portrait" : "capsule.portrait.fill"
         return Text(Image(systemName: symbolName))
             + Text(" \(primary) \(secondary)")
             + Text(" ")
-            + Text(Image(systemName: "capsule.portrait.fill"))
-            + Text(snapshot.activityStatus == .working ? "WORK" : "DONE")
+            + Text(Image(systemName: activitySymbol))
+            + Text(" \(snapshot.activityStatus.label)")
             + Text(" ")
             + Text(Image(systemName: snapshot.needsPermission ? "octagon.fill" : "octagon"))
             + Text(snapshot.needsPermission ? "?" : "")
