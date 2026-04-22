@@ -8,11 +8,11 @@ struct SettingsView: View {
     private var sessionsDirectoryPath = AppPreferences.defaultSessionsDirectoryURL.path
 
     @AppStorage(AppPreferences.refreshIntervalKey)
-    private var refreshInterval = 15.0
+    private var refreshInterval = AppPreferences.defaultRefreshInterval
 
     @State private var sourceError: String?
 
-    private let refreshChoices: [Double] = [5, 10, 15, 30, 60]
+    private let refreshChoices = AppPreferences.allowedRefreshIntervals
 
     var body: some View {
         Form {
@@ -55,7 +55,7 @@ struct SettingsView: View {
             Section("Refresh") {
                 Picker("Refresh interval", selection: $refreshInterval) {
                     ForEach(refreshChoices, id: \.self) { seconds in
-                        Text("\(Int(seconds)) seconds").tag(seconds)
+                        Text(refreshChoiceLabel(for: seconds)).tag(seconds)
                     }
                 }
                 .pickerStyle(.segmented)
@@ -76,6 +76,12 @@ struct SettingsView: View {
             }
         }
         .padding(20)
+        .onAppear {
+            let normalizedInterval = AppPreferences.refreshInterval
+            if refreshInterval != normalizedInterval {
+                refreshInterval = normalizedInterval
+            }
+        }
     }
 
     private var selectedFolderLabel: String {
@@ -109,5 +115,14 @@ struct SettingsView: View {
     private func applyRefreshChanges() {
         monitor.reloadTimer()
         monitor.refresh()
+    }
+
+    private func refreshChoiceLabel(for seconds: Double) -> String {
+        if seconds < 60 {
+            return "\(Int(seconds))s"
+        }
+
+        let minutes = Int(seconds / 60)
+        return minutes == 1 ? "1 min" : "\(minutes) min"
     }
 }
