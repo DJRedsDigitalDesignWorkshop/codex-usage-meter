@@ -38,18 +38,18 @@ private struct StatusBarLabelView: View {
         let secondary = snapshot.secondary?.remainingPercentString ?? "--%"
         let activityIcon = snapshot.activityStatus == .working ? "octagon.fill" : "checkmark.circle.fill"
         let activityColor: Color = snapshot.activityStatus == .working ? Color(nsColor: .systemRed) : Color(nsColor: .systemGreen)
-        let permissionIcon = snapshot.needsPermission ? "questionmark.circle.fill" : "questionmark.circle"
+        let permissionIcon = "questionmark.circle.fill"
         let permissionColor: Color = snapshot.needsPermission ? Color(nsColor: .systemOrange) : .secondary
         let throughput = snapshot.compactTokensPerSecondString
 
-        return Text(Image(systemName: symbolName))
+        return Text(Image(systemName: permissionIcon)).foregroundStyle(permissionColor)
+            + Text(snapshot.needsPermission ? " Ask  " : "  ").foregroundStyle(permissionColor)
+            + Text(Image(systemName: symbolName))
             + Text(" \(primary) \(secondary)")
             + Text(throughput.map { " \($0)" } ?? "").foregroundStyle(.secondary)
             + Text("  ")
             + Text(Image(systemName: activityIcon)).foregroundStyle(activityColor)
             + Text(" \(snapshot.activityStatus.label)").foregroundStyle(.secondary)
-            + Text("  ")
-            + Text(Image(systemName: permissionIcon)).foregroundStyle(permissionColor)
     }
 
     private var symbolName: String {

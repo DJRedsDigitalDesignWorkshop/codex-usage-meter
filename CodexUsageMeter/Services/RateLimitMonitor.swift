@@ -100,7 +100,7 @@ enum AppPreferences {
     static let refreshIntervalKey = "refreshInterval"
     static let defaultRefreshInterval: TimeInterval = 60
     static let allowedRefreshIntervals: [TimeInterval] = [30, 60, 120, 300]
-    static let statusRefreshInterval: TimeInterval = 10
+    static let statusRefreshInterval: TimeInterval = 1
 
     static var sessionsDirectoryURL: URL {
         if let storedPath = UserDefaults.standard.string(forKey: sessionsDirectoryKey),

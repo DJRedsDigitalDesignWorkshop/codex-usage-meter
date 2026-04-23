@@ -83,22 +83,28 @@ public struct CodexSessionScanner {
         }
 
         let candidateFiles = try recentSessionFiles(in: sessionsDirectory, limit: maximumFilesToInspect)
-        let latestIndicators = try candidateFiles.first.map { try sessionIndicators(inFile: $0, tailByteCount: tailByteCount) }
+        let aggregateIndicators = try aggregateSessionIndicators(inFiles: candidateFiles, tailByteCount: tailByteCount)
+
+        var freshestSnapshot: CodexRateLimitSnapshot?
 
         for fileURL in candidateFiles {
-            let indicators = if fileURL == candidateFiles.first {
-                latestIndicators ?? SessionIndicators(activityStatus: .done, needsPermission: false, estimatedTokensPerSecond: nil)
-            } else {
-                try sessionIndicators(inFile: fileURL, tailByteCount: tailByteCount)
-            }
-
             if let snapshot = try latestSnapshot(
                 inFile: fileURL,
                 tailByteCount: tailByteCount,
-                indicators: indicators
+                indicators: aggregateIndicators
             ) {
-                return snapshot
+                if let currentFreshest = freshestSnapshot {
+                    if snapshot.capturedAt > currentFreshest.capturedAt {
+                        freshestSnapshot = snapshot
+                    }
+                } else {
+                    freshestSnapshot = snapshot
+                }
             }
+        }
+
+        if let freshestSnapshot {
+            return freshestSnapshot
         }
 
         throw ScannerError.noSnapshotsFound(sessionsDirectory)
@@ -106,17 +112,19 @@ public struct CodexSessionScanner {
 
     public func latestSessionStatus(
         in sessionsDirectory: URL,
+        maximumFilesToInspect: Int = 40,
         tailByteCount: Int = 262_144
     ) throws -> CodexSessionStatus {
         guard fileManager.fileExists(atPath: sessionsDirectory.path) else {
             throw ScannerError.sessionsDirectoryMissing(sessionsDirectory)
         }
 
-        guard let latestFile = try recentSessionFiles(in: sessionsDirectory, limit: 1).first else {
+        let candidateFiles = try recentSessionFiles(in: sessionsDirectory, limit: maximumFilesToInspect)
+        guard !candidateFiles.isEmpty else {
             throw ScannerError.noSnapshotsFound(sessionsDirectory)
         }
 
-        let indicators = try sessionIndicators(inFile: latestFile, tailByteCount: tailByteCount)
+        let indicators = try aggregateSessionIndicators(inFiles: candidateFiles, tailByteCount: tailByteCount)
         return CodexSessionStatus(
             activityStatus: indicators.activityStatus,
             needsPermission: indicators.needsPermission,
@@ -257,6 +265,40 @@ public struct CodexSessionScanner {
             needsPermission: !pendingApprovalCalls.isEmpty,
             estimatedTokensPerSecond: estimatedTokensPerSecond(from: tokenSamples)
         )
+    }
+
+    private func aggregateSessionIndicators(inFiles fileURLs: [URL], tailByteCount: Int) throws -> SessionIndicators {
+        var mostRecentIndicators = SessionIndicators(
+            activityStatus: .done,
+            needsPermission: false,
+            estimatedTokensPerSecond: nil
+        )
+
+        for (index, fileURL) in fileURLs.enumerated() {
+            let indicators = try sessionIndicators(inFile: fileURL, tailByteCount: tailByteCount)
+
+            if index == 0 {
+                mostRecentIndicators = indicators
+            }
+
+            if indicators.needsPermission {
+                return SessionIndicators(
+                    activityStatus: .working,
+                    needsPermission: true,
+                    estimatedTokensPerSecond: indicators.estimatedTokensPerSecond ?? mostRecentIndicators.estimatedTokensPerSecond
+                )
+            }
+
+            if indicators.activityStatus == .working {
+                return SessionIndicators(
+                    activityStatus: .working,
+                    needsPermission: false,
+                    estimatedTokensPerSecond: indicators.estimatedTokensPerSecond ?? mostRecentIndicators.estimatedTokensPerSecond
+                )
+            }
+        }
+
+        return mostRecentIndicators
     }
 
     private func estimatedTokensPerSecond(from tokenSamples: [TokenUsageSample]) -> Double? {

@@ -84,6 +84,74 @@ struct CodexSessionScannerTests {
     }
 
     @Test
+    func prefersAnyActiveRecentSessionForStatusIndicators() throws {
+        let fileManager = FileManager.default
+        let root = fileManager.temporaryDirectory.appendingPathComponent(UUID().uuidString, isDirectory: true)
+        let sessionsDirectory = root
+            .appendingPathComponent("2026", isDirectory: true)
+            .appendingPathComponent("04", isDirectory: true)
+            .appendingPathComponent("22", isDirectory: true)
+
+        try fileManager.createDirectory(at: sessionsDirectory, withIntermediateDirectories: true)
+
+        let newestCompletedFile = sessionsDirectory.appendingPathComponent("rollout-newest-complete.jsonl")
+        let olderActiveFile = sessionsDirectory.appendingPathComponent("rollout-older-active.jsonl")
+
+        try """
+        {"timestamp":"2026-04-22T14:00:00.000Z","type":"event_msg","payload":{"type":"task_started","turn_id":"turn-1"}}
+        {"timestamp":"2026-04-22T14:00:03.000Z","type":"event_msg","payload":{"type":"task_complete","turn_id":"turn-1"}}
+        {"timestamp":"2026-04-22T14:00:04.000Z","payload":{"rate_limits":{"primary":{"used_percent":20.0,"window_minutes":300,"resets_at":1776870000},"secondary":{"used_percent":9.0,"window_minutes":10080,"resets_at":1777470000},"plan_type":"plus"}}}
+        """.write(to: newestCompletedFile, atomically: true, encoding: .utf8)
+
+        try """
+        {"timestamp":"2026-04-22T13:59:00.000Z","type":"event_msg","payload":{"type":"task_started","turn_id":"turn-2"}}
+        {"timestamp":"2026-04-22T13:59:05.000Z","type":"response_item","payload":{"type":"function_call","call_id":"call-2","arguments":"{\\"sandbox_permissions\\":\\"require_escalated\\",\\"justification\\":\\"Need approval\\"}"}}
+        {"timestamp":"2026-04-22T13:59:06.000Z","payload":{"rate_limits":{"primary":{"used_percent":21.0,"window_minutes":300,"resets_at":1776870001},"secondary":{"used_percent":10.0,"window_minutes":10080,"resets_at":1777470001},"plan_type":"plus"}}}
+        """.write(to: olderActiveFile, atomically: true, encoding: .utf8)
+
+        try fileManager.setAttributes([.modificationDate: Date(timeIntervalSince1970: 200)], ofItemAtPath: newestCompletedFile.path)
+        try fileManager.setAttributes([.modificationDate: Date(timeIntervalSince1970: 100)], ofItemAtPath: olderActiveFile.path)
+
+        let scanner = CodexSessionScanner(fileManager: fileManager)
+        let status = try scanner.latestSessionStatus(in: root)
+
+        #expect(status.activityStatus == .working)
+        #expect(status.needsPermission == true)
+    }
+
+    @Test
+    func prefersFreshestRateLimitTimestampAcrossRecentFiles() throws {
+        let fileManager = FileManager.default
+        let root = fileManager.temporaryDirectory.appendingPathComponent(UUID().uuidString, isDirectory: true)
+        let sessionsDirectory = root
+            .appendingPathComponent("2026", isDirectory: true)
+            .appendingPathComponent("04", isDirectory: true)
+            .appendingPathComponent("23", isDirectory: true)
+
+        try fileManager.createDirectory(at: sessionsDirectory, withIntermediateDirectories: true)
+
+        let newerModifiedFile = sessionsDirectory.appendingPathComponent("rollout-newer-modified.jsonl")
+        let olderModifiedFile = sessionsDirectory.appendingPathComponent("rollout-older-modified.jsonl")
+
+        try """
+        {"timestamp":"2026-04-23T14:00:00.000Z","payload":{"rate_limits":{"primary":{"used_percent":40.0,"window_minutes":300,"resets_at":1776978000},"secondary":{"used_percent":20.0,"window_minutes":10080,"resets_at":1777578000},"plan_type":"plus"}}}
+        """.write(to: newerModifiedFile, atomically: true, encoding: .utf8)
+
+        try """
+        {"timestamp":"2026-04-23T14:05:00.000Z","payload":{"rate_limits":{"primary":{"used_percent":10.0,"window_minutes":300,"resets_at":1776978300},"secondary":{"used_percent":8.0,"window_minutes":10080,"resets_at":1777578300},"plan_type":"plus"}}}
+        """.write(to: olderModifiedFile, atomically: true, encoding: .utf8)
+
+        try fileManager.setAttributes([.modificationDate: Date(timeIntervalSince1970: 200)], ofItemAtPath: newerModifiedFile.path)
+        try fileManager.setAttributes([.modificationDate: Date(timeIntervalSince1970: 100)], ofItemAtPath: olderModifiedFile.path)
+
+        let scanner = CodexSessionScanner(fileManager: fileManager)
+        let snapshot = try scanner.latestSnapshot(in: root)
+
+        #expect(snapshot.primary.usedPercent == 10.0)
+        #expect(snapshot.capturedAt == ISO8601DateFormatter().date(from: "2026-04-23T14:05:00Z"))
+    }
+
+    @Test
     func throwsHelpfulErrorWhenNoSnapshotsExist() throws {
         let fileManager = FileManager.default
         let root = fileManager.temporaryDirectory.appendingPathComponent(UUID().uuidString, isDirectory: true)
