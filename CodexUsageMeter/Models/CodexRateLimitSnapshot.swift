@@ -55,42 +55,15 @@ public struct CodexRateLimitSnapshot: Equatable {
     public let secondary: Window?
     public let activityStatus: ActivityStatus
     public let needsPermission: Bool
-    public let estimatedTokensPerSecond: Double?
     public let sourceFile: URL
 
     public var freshnessDescription: String {
         Self.relativeDescription(for: capturedAt)
     }
 
-    public var tokensPerSecondString: String {
-        guard let estimatedTokensPerSecond else {
-            return "Not available"
-        }
-
-        return Self.formatTokensPerSecond(estimatedTokensPerSecond)
-    }
-
-    public var compactTokensPerSecondString: String? {
-        guard let estimatedTokensPerSecond else {
-            return nil
-        }
-
-        return Self.formatTokensPerSecond(estimatedTokensPerSecond)
-    }
-
     public static func relativeDescription(for date: Date) -> String {
         let formatter = RelativeDateTimeFormatter()
         formatter.unitsStyle = .short
         return formatter.localizedString(for: date, relativeTo: Date())
-    }
-
-    private static func formatTokensPerSecond(_ value: Double) -> String {
-        let roundedValue = max(0, value)
-
-        if roundedValue >= 1_000 {
-            return "\(String(format: "%.1f", roundedValue / 1_000))k/s"
-        }
-
-        return "\(Int(roundedValue.rounded()))/s"
     }
 }

@@ -69,7 +69,6 @@ struct SettingsView: View {
                     LabeledContent("Menu bar text", value: "\(snapshot.primary.remainingPercentString) \(snapshot.secondary?.remainingPercentString ?? "--%")")
                     LabeledContent("Codex state", value: snapshot.activityStatus.label)
                     LabeledContent("Permission state", value: snapshot.needsPermission ? "Waiting for permission" : "No permission needed")
-                    LabeledContent("Recent speed", value: snapshot.tokensPerSecondString)
                     LabeledContent("Plan", value: snapshot.planType.capitalized)
                     LabeledContent("Last update", value: snapshot.freshnessDescription)
                 } else {

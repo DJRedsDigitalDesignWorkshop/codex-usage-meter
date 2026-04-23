@@ -82,7 +82,6 @@ final class RateLimitMonitor: ObservableObject {
                         secondary: snapshot.secondary,
                         activityStatus: status.activityStatus,
                         needsPermission: status.needsPermission,
-                        estimatedTokensPerSecond: status.estimatedTokensPerSecond,
                         sourceFile: snapshot.sourceFile
                     )
                 } else {

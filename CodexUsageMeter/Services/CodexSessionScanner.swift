@@ -3,19 +3,14 @@ import Foundation
 public struct CodexSessionStatus: Equatable {
     public let activityStatus: CodexRateLimitSnapshot.ActivityStatus
     public let needsPermission: Bool
-    public let estimatedTokensPerSecond: Double?
 }
 
 public struct CodexSessionScanner {
+    private static let minimumIndicatorsTailByteCount = 8_388_608
+
     private struct SessionIndicators {
         let activityStatus: CodexRateLimitSnapshot.ActivityStatus
         let needsPermission: Bool
-        let estimatedTokensPerSecond: Double?
-    }
-
-    private struct TokenUsageSample {
-        let timestamp: Date
-        let totalTokens: Double
     }
 
     public enum ScannerError: LocalizedError {
@@ -83,7 +78,10 @@ public struct CodexSessionScanner {
         }
 
         let candidateFiles = try recentSessionFiles(in: sessionsDirectory, limit: maximumFilesToInspect)
-        let aggregateIndicators = try aggregateSessionIndicators(inFiles: candidateFiles, tailByteCount: tailByteCount)
+        let aggregateIndicators = try aggregateSessionIndicators(
+            inFiles: candidateFiles,
+            tailByteCount: max(tailByteCount, Self.minimumIndicatorsTailByteCount)
+        )
 
         var freshestSnapshot: CodexRateLimitSnapshot?
 
@@ -124,11 +122,13 @@ public struct CodexSessionScanner {
             throw ScannerError.noSnapshotsFound(sessionsDirectory)
         }
 
-        let indicators = try aggregateSessionIndicators(inFiles: candidateFiles, tailByteCount: tailByteCount)
+        let indicators = try aggregateSessionIndicators(
+            inFiles: candidateFiles,
+            tailByteCount: max(tailByteCount, Self.minimumIndicatorsTailByteCount)
+        )
         return CodexSessionStatus(
             activityStatus: indicators.activityStatus,
-            needsPermission: indicators.needsPermission,
-            estimatedTokensPerSecond: indicators.estimatedTokensPerSecond
+            needsPermission: indicators.needsPermission
         )
     }
 
@@ -189,7 +189,6 @@ public struct CodexSessionScanner {
                 },
                 activityStatus: indicators.activityStatus,
                 needsPermission: indicators.needsPermission,
-                estimatedTokensPerSecond: indicators.estimatedTokensPerSecond,
                 sourceFile: fileURL
             )
         }
@@ -199,13 +198,12 @@ public struct CodexSessionScanner {
 
     private func sessionIndicators(inFile fileURL: URL, tailByteCount: Int) throws -> SessionIndicators {
         let data = try tailData(for: fileURL, byteCount: tailByteCount)
-        guard let rawText = String(data: data, encoding: .utf8) else {
-            return SessionIndicators(activityStatus: .done, needsPermission: false, estimatedTokensPerSecond: nil)
-        }
+        let rawText = String(decoding: data, as: UTF8.self)
 
         var latestActivityStatus = CodexRateLimitSnapshot.ActivityStatus.done
+        var openTurnIDs: Set<String> = []
         var pendingApprovalCalls: Set<String> = []
-        var tokenSamples: [TokenUsageSample] = []
+        var sawActivityEvent = false
 
         for line in rawText.split(separator: "\n") {
             guard
@@ -217,25 +215,23 @@ public struct CodexSessionScanner {
             }
 
             let payload = object["payload"] as? [String: Any]
-            let timestamp = parsedTimestamp(from: object)
 
             if recordType == "event_msg", let payloadType = payload?["type"] as? String {
                 switch payloadType {
                 case "task_started":
+                    sawActivityEvent = true
+                    if let turnID = payload?["turn_id"] as? String {
+                        openTurnIDs.insert(turnID)
+                    }
                     latestActivityStatus = .working
                 case "task_complete":
-                    latestActivityStatus = .done
-                case "token_count":
-                    if
-                        let timestamp,
-                        let totalTokens = nestedDouble(in: payload, path: ["info", "total_token_usage", "total_tokens"])
-                    {
-                        tokenSamples.append(TokenUsageSample(timestamp: timestamp, totalTokens: totalTokens))
-
-                        if tokenSamples.count > 4 {
-                            tokenSamples.removeFirst(tokenSamples.count - 4)
-                        }
+                    sawActivityEvent = true
+                    if let turnID = payload?["turn_id"] as? String {
+                        openTurnIDs.remove(turnID)
+                    } else {
+                        openTurnIDs.removeAll()
                     }
+                    latestActivityStatus = openTurnIDs.isEmpty ? .done : .working
                 default:
                     break
                 }
@@ -246,8 +242,7 @@ public struct CodexSessionScanner {
                 case "function_call":
                     guard let callID = payload?["call_id"] as? String else { continue }
                     let arguments = payload?["arguments"] as? String ?? ""
-                    if arguments.contains("\"sandbox_permissions\":\"require_escalated\"") ||
-                        arguments.contains("\"sandbox_permissions\": \"require_escalated\"") {
+                    if requiresEscalatedSandbox(arguments: arguments) {
                         pendingApprovalCalls.insert(callID)
                     }
                 case "function_call_output":
@@ -260,18 +255,22 @@ public struct CodexSessionScanner {
             }
         }
 
+        if !sawActivityEvent,
+           let modifiedAt = try? fileURL.resourceValues(forKeys: [.contentModificationDateKey]).contentModificationDate,
+           Date().timeIntervalSince(modifiedAt) < 15 {
+            latestActivityStatus = .working
+        }
+
         return SessionIndicators(
             activityStatus: latestActivityStatus,
-            needsPermission: !pendingApprovalCalls.isEmpty,
-            estimatedTokensPerSecond: estimatedTokensPerSecond(from: tokenSamples)
+            needsPermission: !pendingApprovalCalls.isEmpty
         )
     }
 
     private func aggregateSessionIndicators(inFiles fileURLs: [URL], tailByteCount: Int) throws -> SessionIndicators {
         var mostRecentIndicators = SessionIndicators(
             activityStatus: .done,
-            needsPermission: false,
-            estimatedTokensPerSecond: nil
+            needsPermission: false
         )
 
         for (index, fileURL) in fileURLs.enumerated() {
@@ -284,63 +283,19 @@ public struct CodexSessionScanner {
             if indicators.needsPermission {
                 return SessionIndicators(
                     activityStatus: .working,
-                    needsPermission: true,
-                    estimatedTokensPerSecond: indicators.estimatedTokensPerSecond ?? mostRecentIndicators.estimatedTokensPerSecond
+                    needsPermission: true
                 )
             }
 
             if indicators.activityStatus == .working {
                 return SessionIndicators(
                     activityStatus: .working,
-                    needsPermission: false,
-                    estimatedTokensPerSecond: indicators.estimatedTokensPerSecond ?? mostRecentIndicators.estimatedTokensPerSecond
+                    needsPermission: false
                 )
             }
         }
 
         return mostRecentIndicators
-    }
-
-    private func estimatedTokensPerSecond(from tokenSamples: [TokenUsageSample]) -> Double? {
-        guard tokenSamples.count >= 2 else { return nil }
-
-        let recentSamples = Array(tokenSamples.suffix(2))
-        let older = recentSamples[0]
-        let newer = recentSamples[1]
-        let duration = newer.timestamp.timeIntervalSince(older.timestamp)
-        let tokenDelta = newer.totalTokens - older.totalTokens
-
-        guard duration > 0, tokenDelta >= 0 else { return nil }
-        return tokenDelta / duration
-    }
-
-    private func parsedTimestamp(from object: [String: Any]) -> Date? {
-        guard let value = object["timestamp"] as? String else { return nil }
-        return fractionalTimestampFormatter.date(from: value) ?? basicTimestampFormatter.date(from: value)
-    }
-
-    private func nestedDouble(in dictionary: [String: Any]?, path: [String]) -> Double? {
-        guard let dictionary else { return nil }
-
-        var current: Any = dictionary
-        for key in path {
-            guard let next = (current as? [String: Any])?[key] else { return nil }
-            current = next
-        }
-
-        if let value = current as? Double {
-            return value
-        }
-
-        if let value = current as? Int {
-            return Double(value)
-        }
-
-        if let value = current as? NSNumber {
-            return value.doubleValue
-        }
-
-        return nil
     }
 
     private func tailData(for fileURL: URL, byteCount: Int) throws -> Data {
@@ -350,7 +305,26 @@ public struct CodexSessionScanner {
         let fileSize = try handle.seekToEnd()
         let offset = fileSize > UInt64(byteCount) ? fileSize - UInt64(byteCount) : 0
         try handle.seek(toOffset: offset)
-        return try handle.readToEnd() ?? Data()
+        let data = try handle.readToEnd() ?? Data()
+
+        guard offset > 0 else { return data }
+        guard let newlineIndex = data.firstIndex(of: 0x0A) else { return Data() }
+        let nextIndex = data.index(after: newlineIndex)
+        return Data(data[nextIndex...])
+    }
+
+    private func requiresEscalatedSandbox(arguments: String) -> Bool {
+        guard let data = arguments.data(using: .utf8) else {
+            return false
+        }
+
+        if let object = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+           let sandboxPermissions = object["sandbox_permissions"] as? String {
+            return sandboxPermissions == "require_escalated"
+        }
+
+        return arguments.contains("\"sandbox_permissions\":\"require_escalated\"") ||
+            arguments.contains("\"sandbox_permissions\": \"require_escalated\"")
     }
 }
 
