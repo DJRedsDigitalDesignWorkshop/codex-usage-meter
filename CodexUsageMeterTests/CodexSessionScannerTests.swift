@@ -172,6 +172,36 @@ struct CodexSessionScannerTests {
     }
 
     @Test
+    func prefersTopLevelSnapshotOverNewerSubagentSnapshot() throws {
+        let fileManager = FileManager.default
+        let root = fileManager.temporaryDirectory.appendingPathComponent(UUID().uuidString, isDirectory: true)
+        try fileManager.createDirectory(at: root, withIntermediateDirectories: true)
+
+        let topLevelFile = root.appendingPathComponent("rollout-top-level.jsonl")
+        let subagentFile = root.appendingPathComponent("rollout-subagent.jsonl")
+
+        try """
+        {"type":"session_meta","payload":{"id":"top-level","cwd":"/tmp/project","source":"vscode"}}
+        {"timestamp":"2026-04-23T14:00:00.000Z","payload":{"rate_limits":{"primary":{"used_percent":43.0,"window_minutes":300,"resets_at":1776978000},"secondary":{"used_percent":28.0,"window_minutes":10080,"resets_at":1777578000},"plan_type":"plus"}}}
+        """.write(to: topLevelFile, atomically: true, encoding: .utf8)
+
+        try """
+        {"type":"session_meta","payload":{"id":"subagent","cwd":"/tmp/project","source":{"subagent":{"thread_spawn":{"parent_thread_id":"parent"}}}}}
+        {"timestamp":"2026-04-23T14:01:00.000Z","payload":{"rate_limits":{"primary":{"used_percent":86.0,"window_minutes":300,"resets_at":1776978060},"secondary":{"used_percent":35.0,"window_minutes":10080,"resets_at":1777578060},"plan_type":"plus"}}}
+        """.write(to: subagentFile, atomically: true, encoding: .utf8)
+
+        try fileManager.setAttributes([.modificationDate: Date(timeIntervalSince1970: 100)], ofItemAtPath: topLevelFile.path)
+        try fileManager.setAttributes([.modificationDate: Date(timeIntervalSince1970: 200)], ofItemAtPath: subagentFile.path)
+
+        let scanner = CodexSessionScanner(fileManager: fileManager)
+        let snapshot = try scanner.latestSnapshot(in: root)
+
+        #expect(snapshot.primary.usedPercent == 43.0)
+        #expect(snapshot.secondary?.usedPercent == 28.0)
+        #expect(snapshot.sourceFile.lastPathComponent == "rollout-top-level.jsonl")
+    }
+
+    @Test
     func throwsHelpfulErrorWhenNoSnapshotsExist() throws {
         let fileManager = FileManager.default
         let root = fileManager.temporaryDirectory.appendingPathComponent(UUID().uuidString, isDirectory: true)

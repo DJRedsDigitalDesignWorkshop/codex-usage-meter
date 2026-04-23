@@ -7,10 +7,17 @@ public struct CodexSessionStatus: Equatable {
 
 public struct CodexSessionScanner {
     private static let minimumIndicatorsTailByteCount = 8_388_608
+    private static let sessionMetaProbeByteCount = 16_384
 
     private struct SessionIndicators {
         let activityStatus: CodexRateLimitSnapshot.ActivityStatus
         let needsPermission: Bool
+    }
+
+    private struct SessionFile {
+        let url: URL
+        let modifiedAt: Date
+        let isSubagent: Bool
     }
 
     public enum ScannerError: LocalizedError {
@@ -78,14 +85,15 @@ public struct CodexSessionScanner {
         }
 
         let candidateFiles = try recentSessionFiles(in: sessionsDirectory, limit: maximumFilesToInspect)
+        let snapshotFiles = preferredSnapshotFiles(from: candidateFiles)
         let aggregateIndicators = try aggregateSessionIndicators(
-            inFiles: candidateFiles,
+            inFiles: candidateFiles.map(\.url),
             tailByteCount: max(tailByteCount, Self.minimumIndicatorsTailByteCount)
         )
 
         var freshestSnapshot: CodexRateLimitSnapshot?
 
-        for fileURL in candidateFiles {
+        for fileURL in snapshotFiles {
             if let snapshot = try latestSnapshot(
                 inFile: fileURL,
                 tailByteCount: tailByteCount,
@@ -123,7 +131,7 @@ public struct CodexSessionScanner {
         }
 
         let indicators = try aggregateSessionIndicators(
-            inFiles: candidateFiles,
+            inFiles: candidateFiles.map(\.url),
             tailByteCount: max(tailByteCount, Self.minimumIndicatorsTailByteCount)
         )
         return CodexSessionStatus(
@@ -132,7 +140,7 @@ public struct CodexSessionScanner {
         )
     }
 
-    private func recentSessionFiles(in directory: URL, limit: Int) throws -> [URL] {
+    private func recentSessionFiles(in directory: URL, limit: Int) throws -> [SessionFile] {
         let keys: [URLResourceKey] = [.contentModificationDateKey, .isRegularFileKey]
         let enumerator = fileManager.enumerator(
             at: directory,
@@ -140,7 +148,7 @@ public struct CodexSessionScanner {
             options: [.skipsHiddenFiles]
         )
 
-        var files: [(url: URL, modifiedAt: Date)] = []
+        var files: [SessionFile] = []
 
         while let item = enumerator?.nextObject() as? URL {
             guard item.pathExtension == "jsonl" else { continue }
@@ -149,13 +157,19 @@ public struct CodexSessionScanner {
             let resourceValues = try item.resourceValues(forKeys: Set(keys))
             guard resourceValues.isRegularFile == true else { continue }
 
-            files.append((item, resourceValues.contentModificationDate ?? .distantPast))
+            files.append(
+                SessionFile(
+                    url: item,
+                    modifiedAt: resourceValues.contentModificationDate ?? .distantPast,
+                    isSubagent: try isSubagentSessionFile(item)
+                )
+            )
         }
 
         return files
             .sorted { $0.modifiedAt > $1.modifiedAt }
             .prefix(limit)
-            .map(\.url)
+            .map { $0 }
     }
 
     private func latestSnapshot(
@@ -298,6 +312,32 @@ public struct CodexSessionScanner {
         return mostRecentIndicators
     }
 
+    private func preferredSnapshotFiles(from files: [SessionFile]) -> [URL] {
+        let topLevelFiles = files.filter { !$0.isSubagent }.map(\.url)
+        return topLevelFiles.isEmpty ? files.map(\.url) : topLevelFiles
+    }
+
+    private func isSubagentSessionFile(_ fileURL: URL) throws -> Bool {
+        let data = try headData(for: fileURL, byteCount: Self.sessionMetaProbeByteCount)
+        let rawText = String(decoding: data, as: UTF8.self)
+
+        for line in rawText.split(separator: "\n") {
+            guard
+                let data = line.data(using: .utf8),
+                let object = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+                object["type"] as? String == "session_meta",
+                let payload = object["payload"] as? [String: Any]
+            else {
+                continue
+            }
+
+            let source = payload["source"] as? [String: Any]
+            return source?["subagent"] != nil
+        }
+
+        return false
+    }
+
     private func tailData(for fileURL: URL, byteCount: Int) throws -> Data {
         let handle = try FileHandle(forReadingFrom: fileURL)
         defer { try? handle.close() }
@@ -311,6 +351,14 @@ public struct CodexSessionScanner {
         guard let newlineIndex = data.firstIndex(of: 0x0A) else { return Data() }
         let nextIndex = data.index(after: newlineIndex)
         return Data(data[nextIndex...])
+    }
+
+    private func headData(for fileURL: URL, byteCount: Int) throws -> Data {
+        let handle = try FileHandle(forReadingFrom: fileURL)
+        defer { try? handle.close() }
+
+        let data = try handle.read(upToCount: byteCount) ?? Data()
+        return data
     }
 
     private func requiresEscalatedSandbox(arguments: String) -> Bool {

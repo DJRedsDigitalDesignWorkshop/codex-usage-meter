@@ -72,21 +72,8 @@ final class RateLimitMonitor: ObservableObject {
 
             do {
                 let directoryURL = AppPreferences.sessionsDirectoryURL
-                let status = try scanner.latestSessionStatus(in: directoryURL)
-
-                if let snapshot {
-                    self.snapshot = CodexRateLimitSnapshot(
-                        capturedAt: snapshot.capturedAt,
-                        planType: snapshot.planType,
-                        primary: snapshot.primary,
-                        secondary: snapshot.secondary,
-                        activityStatus: status.activityStatus,
-                        needsPermission: status.needsPermission,
-                        sourceFile: snapshot.sourceFile
-                    )
-                } else {
-                    refresh()
-                }
+                let latest = try scanner.latestSnapshot(in: directoryURL)
+                snapshot = latest
             } catch {
                 // Keep the last known usage snapshot if status-only polling fails transiently.
             }
