@@ -8,6 +8,9 @@ public struct CodexSessionStatus: Equatable {
 public struct CodexSessionScanner {
     private static let minimumIndicatorsTailByteCount = 8_388_608
     private static let sessionMetaProbeByteCount = 16_384
+    private static let staleActivityInterval: TimeInterval = 120
+    private static let stalePermissionInterval: TimeInterval = 120
+    private static let recentModificationGraceInterval: TimeInterval = 15
 
     private struct SessionIndicators {
         let activityStatus: CodexRateLimitSnapshot.ActivityStatus
@@ -87,7 +90,7 @@ public struct CodexSessionScanner {
         let candidateFiles = try recentSessionFiles(in: sessionsDirectory, limit: maximumFilesToInspect)
         let snapshotFiles = preferredSnapshotFiles(from: candidateFiles)
         let aggregateIndicators = try aggregateSessionIndicators(
-            inFiles: candidateFiles.map(\.url),
+            inFiles: snapshotFiles,
             tailByteCount: max(tailByteCount, Self.minimumIndicatorsTailByteCount)
         )
 
@@ -130,8 +133,9 @@ public struct CodexSessionScanner {
             throw ScannerError.noSnapshotsFound(sessionsDirectory)
         }
 
+        let statusFiles = preferredSnapshotFiles(from: candidateFiles)
         let indicators = try aggregateSessionIndicators(
-            inFiles: candidateFiles.map(\.url),
+            inFiles: statusFiles,
             tailByteCount: max(tailByteCount, Self.minimumIndicatorsTailByteCount)
         )
         return CodexSessionStatus(
@@ -213,10 +217,11 @@ public struct CodexSessionScanner {
     private func sessionIndicators(inFile fileURL: URL, tailByteCount: Int) throws -> SessionIndicators {
         let data = try tailData(for: fileURL, byteCount: tailByteCount)
         let rawText = String(decoding: data, as: UTF8.self)
+        let modifiedAt = (try? fileURL.resourceValues(forKeys: [.contentModificationDateKey]).contentModificationDate) ?? .distantPast
 
         var latestActivityStatus = CodexRateLimitSnapshot.ActivityStatus.done
-        var openTurnIDs: Set<String> = []
-        var pendingApprovalCalls: Set<String> = []
+        var openTurnIDs: [String: Date] = [:]
+        var pendingApprovalCalls: [String: Date] = [:]
         var sawActivityEvent = false
 
         for line in rawText.split(separator: "\n") {
@@ -229,19 +234,19 @@ public struct CodexSessionScanner {
             }
 
             let payload = object["payload"] as? [String: Any]
+            let eventAt = eventDate(from: object) ?? modifiedAt
 
             if recordType == "event_msg", let payloadType = payload?["type"] as? String {
                 switch payloadType {
                 case "task_started":
                     sawActivityEvent = true
-                    if let turnID = payload?["turn_id"] as? String {
-                        openTurnIDs.insert(turnID)
-                    }
+                    let turnID = payload?["turn_id"] as? String ?? "__unknown_turn__"
+                    openTurnIDs[turnID] = eventAt
                     latestActivityStatus = .working
                 case "task_complete":
                     sawActivityEvent = true
                     if let turnID = payload?["turn_id"] as? String {
-                        openTurnIDs.remove(turnID)
+                        openTurnIDs.removeValue(forKey: turnID)
                     } else {
                         openTurnIDs.removeAll()
                     }
@@ -257,11 +262,11 @@ public struct CodexSessionScanner {
                     guard let callID = payload?["call_id"] as? String else { continue }
                     let arguments = payload?["arguments"] as? String ?? ""
                     if requiresEscalatedSandbox(arguments: arguments) {
-                        pendingApprovalCalls.insert(callID)
+                        pendingApprovalCalls[callID] = eventAt
                     }
                 case "function_call_output":
                     if let callID = payload?["call_id"] as? String {
-                        pendingApprovalCalls.remove(callID)
+                        pendingApprovalCalls.removeValue(forKey: callID)
                     }
                 default:
                     break
@@ -269,15 +274,24 @@ public struct CodexSessionScanner {
             }
         }
 
-        if !sawActivityEvent,
-           let modifiedAt = try? fileURL.resourceValues(forKeys: [.contentModificationDateKey]).contentModificationDate,
-           Date().timeIntervalSince(modifiedAt) < 15 {
+        let hasFreshOpenTurn = openTurnIDs.values.contains {
+            isFresh(eventAt: $0, modifiedAt: modifiedAt, staleInterval: Self.staleActivityInterval)
+        }
+        let hasFreshPendingApproval = pendingApprovalCalls.values.contains {
+            isFresh(eventAt: $0, modifiedAt: modifiedAt, staleInterval: Self.stalePermissionInterval)
+        }
+
+        if hasFreshOpenTurn {
             latestActivityStatus = .working
+        } else if !sawActivityEvent && isRecentlyModified(modifiedAt) {
+            latestActivityStatus = .working
+        } else if latestActivityStatus == .working {
+            latestActivityStatus = .done
         }
 
         return SessionIndicators(
             activityStatus: latestActivityStatus,
-            needsPermission: !pendingApprovalCalls.isEmpty
+            needsPermission: hasFreshPendingApproval
         )
     }
 
@@ -373,6 +387,19 @@ public struct CodexSessionScanner {
 
         return arguments.contains("\"sandbox_permissions\":\"require_escalated\"") ||
             arguments.contains("\"sandbox_permissions\": \"require_escalated\"")
+    }
+
+    private func eventDate(from object: [String: Any]) -> Date? {
+        guard let timestamp = object["timestamp"] as? String else { return nil }
+        return fractionalTimestampFormatter.date(from: timestamp) ?? basicTimestampFormatter.date(from: timestamp)
+    }
+
+    private func isFresh(eventAt: Date, modifiedAt: Date, staleInterval: TimeInterval) -> Bool {
+        Date().timeIntervalSince(eventAt) <= staleInterval || isRecentlyModified(modifiedAt)
+    }
+
+    private func isRecentlyModified(_ modifiedAt: Date) -> Bool {
+        Date().timeIntervalSince(modifiedAt) < Self.recentModificationGraceInterval
     }
 }
 

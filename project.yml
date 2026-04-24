@@ -5,8 +5,8 @@ options:
 settings:
   base:
     PRODUCT_BUNDLE_IDENTIFIER: io.github.codexusagemeter
-    CURRENT_PROJECT_VERSION: 13
-    MARKETING_VERSION: 1.0.12
+    CURRENT_PROJECT_VERSION: 14
+    MARKETING_VERSION: 1.0.13
     SWIFT_VERSION: 6.0
     GENERATE_INFOPLIST_FILE: NO
     CODE_SIGN_STYLE: Automatic
@@ -40,6 +40,7 @@ targets:
       base:
         PRODUCT_NAME: CodexUsageMeterTests
         PRODUCT_MODULE_NAME: CodexUsageMeterTests
+        GENERATE_INFOPLIST_FILE: YES
         TEST_HOST: "$(BUILT_PRODUCTS_DIR)/Codex Usage Meter.app/Contents/MacOS/Codex Usage Meter"
         BUNDLE_LOADER: "$(TEST_HOST)"
     sources:
