@@ -121,7 +121,7 @@ struct CodexSessionScannerTests {
     }
 
     @Test
-    func prefersFreshestRateLimitTimestampAcrossRecentFiles() throws {
+    func prefersMostRecentlyModifiedSessionForRateLimitSnapshot() throws {
         let fileManager = FileManager.default
         let root = fileManager.temporaryDirectory.appendingPathComponent(UUID().uuidString, isDirectory: true)
         let sessionsDirectory = root
@@ -148,8 +148,9 @@ struct CodexSessionScannerTests {
         let scanner = CodexSessionScanner(fileManager: fileManager)
         let snapshot = try scanner.latestSnapshot(in: root)
 
-        #expect(snapshot.primary.usedPercent == 10.0)
-        #expect(snapshot.capturedAt == ISO8601DateFormatter().date(from: "2026-04-23T14:05:00Z"))
+        #expect(snapshot.primary.usedPercent == 40.0)
+        #expect(snapshot.capturedAt == ISO8601DateFormatter().date(from: "2026-04-23T14:00:00Z"))
+        #expect(snapshot.sourceFile.lastPathComponent == "rollout-newer-modified.jsonl")
     }
 
     @Test

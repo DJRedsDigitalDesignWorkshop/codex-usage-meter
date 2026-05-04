@@ -94,26 +94,14 @@ public struct CodexSessionScanner {
             tailByteCount: max(tailByteCount, Self.minimumIndicatorsTailByteCount)
         )
 
-        var freshestSnapshot: CodexRateLimitSnapshot?
-
         for fileURL in snapshotFiles {
             if let snapshot = try latestSnapshot(
                 inFile: fileURL,
                 tailByteCount: tailByteCount,
                 indicators: aggregateIndicators
             ) {
-                if let currentFreshest = freshestSnapshot {
-                    if snapshot.capturedAt > currentFreshest.capturedAt {
-                        freshestSnapshot = snapshot
-                    }
-                } else {
-                    freshestSnapshot = snapshot
-                }
+                return snapshot
             }
-        }
-
-        if let freshestSnapshot {
-            return freshestSnapshot
         }
 
         throw ScannerError.noSnapshotsFound(sessionsDirectory)
