@@ -94,14 +94,20 @@ public struct CodexSessionScanner {
             tailByteCount: max(tailByteCount, Self.minimumIndicatorsTailByteCount)
         )
 
+        var snapshots: [CodexRateLimitSnapshot] = []
+
         for fileURL in snapshotFiles {
             if let snapshot = try latestSnapshot(
                 inFile: fileURL,
                 tailByteCount: tailByteCount,
                 indicators: aggregateIndicators
             ) {
-                return snapshot
+                snapshots.append(snapshot)
             }
+        }
+
+        if let snapshot = selectedSnapshot(from: snapshots) {
+            return snapshot
         }
 
         throw ScannerError.noSnapshotsFound(sessionsDirectory)
@@ -317,6 +323,30 @@ public struct CodexSessionScanner {
     private func preferredSnapshotFiles(from files: [SessionFile]) -> [URL] {
         let topLevelFiles = files.filter { !$0.isSubagent }.map(\.url)
         return topLevelFiles.isEmpty ? files.map(\.url) : topLevelFiles
+    }
+
+    private func selectedSnapshot(from snapshots: [CodexRateLimitSnapshot]) -> CodexRateLimitSnapshot? {
+        guard let newestPrimaryReset = snapshots.map(\.primary.resetsAt).max() else {
+            return nil
+        }
+
+        let currentWindowSnapshots = snapshots.filter {
+            abs($0.primary.resetsAt.timeIntervalSince(newestPrimaryReset)) < 1
+        }
+
+        return currentWindowSnapshots.max { lhs, rhs in
+            if lhs.primary.usedPercent != rhs.primary.usedPercent {
+                return lhs.primary.usedPercent < rhs.primary.usedPercent
+            }
+
+            let lhsSecondaryUsed = lhs.secondary?.usedPercent ?? -1
+            let rhsSecondaryUsed = rhs.secondary?.usedPercent ?? -1
+            if lhsSecondaryUsed != rhsSecondaryUsed {
+                return lhsSecondaryUsed < rhsSecondaryUsed
+            }
+
+            return lhs.capturedAt < rhs.capturedAt
+        }
     }
 
     private func isSubagentSessionFile(_ fileURL: URL) throws -> Bool {

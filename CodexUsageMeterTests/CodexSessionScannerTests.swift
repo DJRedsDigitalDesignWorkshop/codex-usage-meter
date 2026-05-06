@@ -119,9 +119,8 @@ struct CodexSessionScannerTests {
         #expect(snapshot.activityStatus == .done)
         #expect(snapshot.needsPermission == false)
     }
-
     @Test
-    func prefersMostRecentlyModifiedSessionForRateLimitSnapshot() throws {
+    func prefersMostConservativeSnapshotWithinCurrentResetWindow() throws {
         let fileManager = FileManager.default
         let root = fileManager.temporaryDirectory.appendingPathComponent(UUID().uuidString, isDirectory: true)
         let sessionsDirectory = root
@@ -131,26 +130,54 @@ struct CodexSessionScannerTests {
 
         try fileManager.createDirectory(at: sessionsDirectory, withIntermediateDirectories: true)
 
-        let newerModifiedFile = sessionsDirectory.appendingPathComponent("rollout-newer-modified.jsonl")
-        let olderModifiedFile = sessionsDirectory.appendingPathComponent("rollout-older-modified.jsonl")
+        let newerLaggingFile = sessionsDirectory.appendingPathComponent("rollout-newer-lagging.jsonl")
+        let olderConservativeFile = sessionsDirectory.appendingPathComponent("rollout-older-conservative.jsonl")
+
+        try """
+        {"timestamp":"2026-04-23T14:00:00.000Z","payload":{"rate_limits":{"primary":{"used_percent":62.0,"window_minutes":300,"resets_at":1776978000},"secondary":{"used_percent":30.0,"window_minutes":10080,"resets_at":1777578000},"plan_type":"plus"}}}
+        """.write(to: newerLaggingFile, atomically: true, encoding: .utf8)
+
+        try """
+        {"timestamp":"2026-04-23T14:05:00.000Z","payload":{"rate_limits":{"primary":{"used_percent":68.0,"window_minutes":300,"resets_at":1776978000},"secondary":{"used_percent":32.0,"window_minutes":10080,"resets_at":1777578000},"plan_type":"plus"}}}
+        """.write(to: olderConservativeFile, atomically: true, encoding: .utf8)
+
+        try fileManager.setAttributes([.modificationDate: Date(timeIntervalSince1970: 200)], ofItemAtPath: newerLaggingFile.path)
+        try fileManager.setAttributes([.modificationDate: Date(timeIntervalSince1970: 100)], ofItemAtPath: olderConservativeFile.path)
+
+        let scanner = CodexSessionScanner(fileManager: fileManager)
+        let snapshot = try scanner.latestSnapshot(in: root)
+
+        #expect(snapshot.primary.usedPercent == 68.0)
+        #expect(snapshot.secondary?.usedPercent == 32.0)
+        #expect(snapshot.sourceFile.lastPathComponent == "rollout-older-conservative.jsonl")
+    }
+
+    @Test
+    func ignoresMoreConservativeSnapshotsFromExpiredResetWindows() throws {
+        let fileManager = FileManager.default
+        let root = fileManager.temporaryDirectory.appendingPathComponent(UUID().uuidString, isDirectory: true)
+        try fileManager.createDirectory(at: root, withIntermediateDirectories: true)
+
+        let expiredWindowFile = root.appendingPathComponent("rollout-expired-window.jsonl")
+        let currentWindowFile = root.appendingPathComponent("rollout-current-window.jsonl")
+
+        try """
+        {"timestamp":"2026-04-23T13:00:00.000Z","payload":{"rate_limits":{"primary":{"used_percent":95.0,"window_minutes":300,"resets_at":1776970000},"secondary":{"used_percent":80.0,"window_minutes":10080,"resets_at":1777570000},"plan_type":"plus"}}}
+        """.write(to: expiredWindowFile, atomically: true, encoding: .utf8)
 
         try """
         {"timestamp":"2026-04-23T14:00:00.000Z","payload":{"rate_limits":{"primary":{"used_percent":40.0,"window_minutes":300,"resets_at":1776978000},"secondary":{"used_percent":20.0,"window_minutes":10080,"resets_at":1777578000},"plan_type":"plus"}}}
-        """.write(to: newerModifiedFile, atomically: true, encoding: .utf8)
+        """.write(to: currentWindowFile, atomically: true, encoding: .utf8)
 
-        try """
-        {"timestamp":"2026-04-23T14:05:00.000Z","payload":{"rate_limits":{"primary":{"used_percent":10.0,"window_minutes":300,"resets_at":1776978300},"secondary":{"used_percent":8.0,"window_minutes":10080,"resets_at":1777578300},"plan_type":"plus"}}}
-        """.write(to: olderModifiedFile, atomically: true, encoding: .utf8)
-
-        try fileManager.setAttributes([.modificationDate: Date(timeIntervalSince1970: 200)], ofItemAtPath: newerModifiedFile.path)
-        try fileManager.setAttributes([.modificationDate: Date(timeIntervalSince1970: 100)], ofItemAtPath: olderModifiedFile.path)
+        try fileManager.setAttributes([.modificationDate: Date(timeIntervalSince1970: 200)], ofItemAtPath: expiredWindowFile.path)
+        try fileManager.setAttributes([.modificationDate: Date(timeIntervalSince1970: 100)], ofItemAtPath: currentWindowFile.path)
 
         let scanner = CodexSessionScanner(fileManager: fileManager)
         let snapshot = try scanner.latestSnapshot(in: root)
 
         #expect(snapshot.primary.usedPercent == 40.0)
-        #expect(snapshot.capturedAt == ISO8601DateFormatter().date(from: "2026-04-23T14:00:00Z"))
-        #expect(snapshot.sourceFile.lastPathComponent == "rollout-newer-modified.jsonl")
+        #expect(snapshot.secondary?.usedPercent == 20.0)
+        #expect(snapshot.sourceFile.lastPathComponent == "rollout-current-window.jsonl")
     }
 
     @Test
