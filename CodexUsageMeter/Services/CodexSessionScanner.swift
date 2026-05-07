@@ -5,7 +5,7 @@ public struct CodexSessionStatus: Equatable {
     public let needsPermission: Bool
 }
 
-public struct CodexSessionScanner {
+public final class CodexSessionScanner {
     private static let minimumIndicatorsTailByteCount = 524_288
     private static let sessionMetaProbeByteCount = 16_384
     private static let staleActivityInterval: TimeInterval = 120
@@ -38,6 +38,10 @@ public struct CodexSessionScanner {
     }
 
     private let fileManager: FileManager
+    private let cacheLock = NSLock()
+    private var cachedRecentFiles: [SessionFile] = []
+    private var cachedRecentFilesLoadedAt: Date = .distantPast
+    private let recentFilesCacheInterval: TimeInterval = 45
     private let decoder: JSONDecoder
     private let fractionalTimestampFormatter: ISO8601DateFormatter
     private let basicTimestampFormatter: ISO8601DateFormatter
@@ -139,6 +143,16 @@ public struct CodexSessionScanner {
     }
 
     private func recentSessionFiles(in directory: URL, limit: Int) throws -> [SessionFile] {
+        let now = Date()
+        cacheLock.lock()
+        let cachedFiles = cachedRecentFiles
+        let cacheAge = now.timeIntervalSince(cachedRecentFilesLoadedAt)
+        cacheLock.unlock()
+
+        if !cachedFiles.isEmpty, cacheAge < recentFilesCacheInterval {
+            return Array(cachedFiles.prefix(limit))
+        }
+
         let keys: [URLResourceKey] = [.contentModificationDateKey, .isRegularFileKey]
         let enumerator = fileManager.enumerator(
             at: directory,
@@ -164,10 +178,14 @@ public struct CodexSessionScanner {
             )
         }
 
-        return files
-            .sorted { $0.modifiedAt > $1.modifiedAt }
-            .prefix(limit)
-            .map { $0 }
+        let sortedFiles = files.sorted { $0.modifiedAt > $1.modifiedAt }
+
+        cacheLock.lock()
+        cachedRecentFiles = sortedFiles
+        cachedRecentFilesLoadedAt = now
+        cacheLock.unlock()
+
+        return Array(sortedFiles.prefix(limit))
     }
 
     private func latestSnapshot(
