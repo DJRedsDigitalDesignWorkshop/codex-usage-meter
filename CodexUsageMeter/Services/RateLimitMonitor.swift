@@ -95,8 +95,8 @@ final class RateLimitMonitor: ObservableObject {
 enum AppPreferences {
     static let sessionsDirectoryKey = "sessionsDirectoryPath"
     static let refreshIntervalKey = "refreshInterval"
-    static let defaultRefreshInterval: TimeInterval = 60
-    static let allowedRefreshIntervals: [TimeInterval] = [30, 60, 120, 300]
+    static let defaultRefreshInterval: TimeInterval = 10
+    static let allowedRefreshIntervals: [TimeInterval] = [10, 30, 60, 120, 300]
     static let statusRefreshInterval: TimeInterval = 10
 
     static var sessionsDirectoryURL: URL {
