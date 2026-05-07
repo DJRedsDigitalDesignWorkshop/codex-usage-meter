@@ -127,7 +127,7 @@ private struct LimitCardView: View {
                 .tint(progressTint)
 
             HStack {
-                Label("Used \(Int(window.usedPercent.rounded()))%", systemImage: "chart.bar.fill")
+                Label("Remaining \(window.remainingPercentString)", systemImage: "chart.bar.fill")
                 Spacer()
                 Label(resetText, systemImage: "timer")
             }
@@ -139,13 +139,13 @@ private struct LimitCardView: View {
     }
 
     private var progressTint: Color {
-        switch window.usedPercent {
+        switch window.remainingPercent {
+        case ..<20:
+            return .red
         case ..<50:
-            return .green
-        case ..<80:
             return .orange
         default:
-            return .red
+            return .green
         }
     }
 

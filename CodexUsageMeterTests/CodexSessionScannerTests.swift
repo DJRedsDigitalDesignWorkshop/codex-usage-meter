@@ -120,7 +120,7 @@ struct CodexSessionScannerTests {
         #expect(snapshot.needsPermission == false)
     }
     @Test
-    func prefersMostConservativeSnapshotWithinCurrentResetWindow() throws {
+    func prefersFreshestRateLimitSnapshotWhenSessionsDisagree() throws {
         let fileManager = FileManager.default
         let root = fileManager.temporaryDirectory.appendingPathComponent(UUID().uuidString, isDirectory: true)
         let sessionsDirectory = root
@@ -130,26 +130,26 @@ struct CodexSessionScannerTests {
 
         try fileManager.createDirectory(at: sessionsDirectory, withIntermediateDirectories: true)
 
-        let newerLaggingFile = sessionsDirectory.appendingPathComponent("rollout-newer-lagging.jsonl")
-        let olderConservativeFile = sessionsDirectory.appendingPathComponent("rollout-older-conservative.jsonl")
+        let fresherFile = sessionsDirectory.appendingPathComponent("rollout-fresh.jsonl")
+        let olderFile = sessionsDirectory.appendingPathComponent("rollout-older.jsonl")
 
         try """
-        {"timestamp":"2026-04-23T14:00:00.000Z","payload":{"rate_limits":{"primary":{"used_percent":62.0,"window_minutes":300,"resets_at":1776978000},"secondary":{"used_percent":30.0,"window_minutes":10080,"resets_at":1777578000},"plan_type":"plus"}}}
-        """.write(to: newerLaggingFile, atomically: true, encoding: .utf8)
+        {"timestamp":"2026-04-23T14:05:00.000Z","payload":{"rate_limits":{"primary":{"used_percent":1.0,"window_minutes":300,"resets_at":1776978000},"secondary":{"used_percent":36.0,"window_minutes":10080,"resets_at":1777578000},"plan_type":"plus"}}}
+        """.write(to: fresherFile, atomically: true, encoding: .utf8)
 
         try """
-        {"timestamp":"2026-04-23T14:05:00.000Z","payload":{"rate_limits":{"primary":{"used_percent":68.0,"window_minutes":300,"resets_at":1776978000},"secondary":{"used_percent":32.0,"window_minutes":10080,"resets_at":1777578000},"plan_type":"plus"}}}
-        """.write(to: olderConservativeFile, atomically: true, encoding: .utf8)
+        {"timestamp":"2026-04-23T14:00:00.000Z","payload":{"rate_limits":{"primary":{"used_percent":72.0,"window_minutes":300,"resets_at":1776978000},"secondary":{"used_percent":32.0,"window_minutes":10080,"resets_at":1777578000},"plan_type":"plus"}}}
+        """.write(to: olderFile, atomically: true, encoding: .utf8)
 
-        try fileManager.setAttributes([.modificationDate: Date(timeIntervalSince1970: 200)], ofItemAtPath: newerLaggingFile.path)
-        try fileManager.setAttributes([.modificationDate: Date(timeIntervalSince1970: 100)], ofItemAtPath: olderConservativeFile.path)
+        try fileManager.setAttributes([.modificationDate: Date(timeIntervalSince1970: 200)], ofItemAtPath: olderFile.path)
+        try fileManager.setAttributes([.modificationDate: Date(timeIntervalSince1970: 100)], ofItemAtPath: fresherFile.path)
 
         let scanner = CodexSessionScanner(fileManager: fileManager)
         let snapshot = try scanner.latestSnapshot(in: root)
 
-        #expect(snapshot.primary.usedPercent == 68.0)
-        #expect(snapshot.secondary?.usedPercent == 32.0)
-        #expect(snapshot.sourceFile.lastPathComponent == "rollout-older-conservative.jsonl")
+        #expect(snapshot.primary.usedPercent == 1.0)
+        #expect(snapshot.secondary?.usedPercent == 36.0)
+        #expect(snapshot.sourceFile.lastPathComponent == "rollout-fresh.jsonl")
     }
 
     @Test

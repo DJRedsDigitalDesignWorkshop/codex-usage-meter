@@ -6,7 +6,7 @@ public struct CodexSessionStatus: Equatable {
 }
 
 public struct CodexSessionScanner {
-    private static let minimumIndicatorsTailByteCount = 8_388_608
+    private static let minimumIndicatorsTailByteCount = 524_288
     private static let sessionMetaProbeByteCount = 16_384
     private static let staleActivityInterval: TimeInterval = 120
     private static let stalePermissionInterval: TimeInterval = 120
@@ -326,26 +326,12 @@ public struct CodexSessionScanner {
     }
 
     private func selectedSnapshot(from snapshots: [CodexRateLimitSnapshot]) -> CodexRateLimitSnapshot? {
-        guard let newestPrimaryReset = snapshots.map(\.primary.resetsAt).max() else {
-            return nil
-        }
-
-        let currentWindowSnapshots = snapshots.filter {
-            abs($0.primary.resetsAt.timeIntervalSince(newestPrimaryReset)) < 1
-        }
-
-        return currentWindowSnapshots.max { lhs, rhs in
-            if lhs.primary.usedPercent != rhs.primary.usedPercent {
-                return lhs.primary.usedPercent < rhs.primary.usedPercent
+        snapshots.max { lhs, rhs in
+            if lhs.capturedAt != rhs.capturedAt {
+                return lhs.capturedAt < rhs.capturedAt
             }
 
-            let lhsSecondaryUsed = lhs.secondary?.usedPercent ?? -1
-            let rhsSecondaryUsed = rhs.secondary?.usedPercent ?? -1
-            if lhsSecondaryUsed != rhsSecondaryUsed {
-                return lhsSecondaryUsed < rhsSecondaryUsed
-            }
-
-            return lhs.capturedAt < rhs.capturedAt
+            return lhs.primary.resetsAt < rhs.primary.resetsAt
         }
     }
 

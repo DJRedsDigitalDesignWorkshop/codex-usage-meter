@@ -66,16 +66,27 @@ final class RateLimitMonitor: ObservableObject {
     }
 
     func refreshStatus() {
-        refreshTask?.cancel()
-        refreshTask = Task { [weak self] in
-            guard let self else { return }
+        Task { [weak self] in
+            guard let self, let snapshot else { return }
 
             do {
                 let directoryURL = AppPreferences.sessionsDirectoryURL
-                let latest = try scanner.latestSnapshot(in: directoryURL)
-                snapshot = latest
+                let status = try scanner.latestSessionStatus(
+                    in: directoryURL,
+                    maximumFilesToInspect: 8,
+                    tailByteCount: 131_072
+                )
+                self.snapshot = CodexRateLimitSnapshot(
+                    capturedAt: snapshot.capturedAt,
+                    planType: snapshot.planType,
+                    primary: snapshot.primary,
+                    secondary: snapshot.secondary,
+                    activityStatus: status.activityStatus,
+                    needsPermission: status.needsPermission,
+                    sourceFile: snapshot.sourceFile
+                )
             } catch {
-                // Keep the last known usage snapshot if status-only polling fails transiently.
+                // Keep the last known status if lightweight polling fails transiently.
             }
         }
     }
