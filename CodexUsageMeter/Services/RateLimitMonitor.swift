@@ -73,8 +73,8 @@ final class RateLimitMonitor: ObservableObject {
                 let directoryURL = AppPreferences.sessionsDirectoryURL
                 let status = try scanner.latestSessionStatus(
                     in: directoryURL,
-                    maximumFilesToInspect: 8,
-                    tailByteCount: 131_072
+                    maximumFilesToInspect: 3,
+                    tailByteCount: 65_536
                 )
                 self.snapshot = CodexRateLimitSnapshot(
                     capturedAt: snapshot.capturedAt,
@@ -97,7 +97,7 @@ enum AppPreferences {
     static let refreshIntervalKey = "refreshInterval"
     static let defaultRefreshInterval: TimeInterval = 60
     static let allowedRefreshIntervals: [TimeInterval] = [30, 60, 120, 300]
-    static let statusRefreshInterval: TimeInterval = 1
+    static let statusRefreshInterval: TimeInterval = 10
 
     static var sessionsDirectoryURL: URL {
         if let storedPath = UserDefaults.standard.string(forKey: sessionsDirectoryKey),

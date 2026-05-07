@@ -21,7 +21,7 @@ public struct CodexRateLimitSnapshot: Equatable {
         public let resetsAt: Date
 
         public var remainingPercent: Double {
-            min(max(usedPercent, 0), 100)
+            max(0, 100 - usedPercent)
         }
 
         public var remainingPercentString: String {
@@ -29,7 +29,7 @@ public struct CodexRateLimitSnapshot: Equatable {
         }
 
         public var progressValue: Double {
-            min(max(remainingPercent / 100, 0), 1)
+            min(max(usedPercent / 100, 0), 1)
         }
 
         public var windowTitle: String {

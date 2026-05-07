@@ -53,13 +53,13 @@ private struct StatusBarLabelView: View {
     private var symbolName: String {
         guard let snapshot else { return "gauge.with.dots.needle.0percent" }
 
-        switch snapshot.primary.remainingPercent {
-        case ..<20:
-            return "exclamationmark.triangle.fill"
+        switch snapshot.primary.usedPercent {
         case ..<50:
             return "gauge.with.dots.needle.33percent"
-        default:
+        case ..<80:
             return "gauge.with.dots.needle.67percent"
+        default:
+            return "exclamationmark.triangle.fill"
         }
     }
 
