@@ -14,6 +14,7 @@
 		39F7DB58AC52C23280F3F51A /* CodexRateLimitSnapshot.swift in Sources */ = {isa = PBXBuildFile; fileRef = BCEDE5A3E947D13462CC2696 /* CodexRateLimitSnapshot.swift */; };
 		CC2F43446834E37B034B7075 /* RateLimitMonitor.swift in Sources */ = {isa = PBXBuildFile; fileRef = 769A5F3E6869365EA6FF98D7 /* RateLimitMonitor.swift */; };
 		D5BC3F34C37E4A9A40F27E52 /* SettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 46443A4E46D3BEDBDEDA1D32 /* SettingsView.swift */; };
+		DCBBD51D2A6C123B899CCBEC /* CodexRPCUsageClient.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7DF9D4D10EAE6DF40BF63F07 /* CodexRPCUsageClient.swift */; };
 		F4939355B1FAE86A2F4CAAF7 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 6E02D71AA046863F1486442C /* Assets.xcassets */; };
 /* End PBXBuildFile section */
 
@@ -35,6 +36,7 @@
 		6E02D71AA046863F1486442C /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
 		717979B6BF60B5F70B68F3D8 /* CodexUsageMeter.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = CodexUsageMeter.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		769A5F3E6869365EA6FF98D7 /* RateLimitMonitor.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RateLimitMonitor.swift; sourceTree = "<group>"; };
+		7DF9D4D10EAE6DF40BF63F07 /* CodexRPCUsageClient.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CodexRPCUsageClient.swift; sourceTree = "<group>"; };
 		A66C384BE2080F0B947C94A0 /* StatusMenuView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StatusMenuView.swift; sourceTree = "<group>"; };
 		AE04EFCCF4EA48732E7A0B6A /* CodexUsageMeterTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = CodexUsageMeterTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		BCEDE5A3E947D13462CC2696 /* CodexRateLimitSnapshot.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CodexRateLimitSnapshot.swift; sourceTree = "<group>"; };
@@ -63,6 +65,7 @@
 		64BEDFFFCB7BD30584CCD705 /* Services */ = {
 			isa = PBXGroup;
 			children = (
+				7DF9D4D10EAE6DF40BF63F07 /* CodexRPCUsageClient.swift */,
 				0C8D62BD3BB988BD7528DE8E /* CodexSessionScanner.swift */,
 				769A5F3E6869365EA6FF98D7 /* RateLimitMonitor.swift */,
 			);
@@ -225,6 +228,7 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				DCBBD51D2A6C123B899CCBEC /* CodexRPCUsageClient.swift in Sources */,
 				39F7DB58AC52C23280F3F51A /* CodexRateLimitSnapshot.swift in Sources */,
 				078339CDFF072DF29939E6F2 /* CodexSessionScanner.swift in Sources */,
 				0512AAB14DF9AF628550C520 /* CodexUsageMeterApp.swift in Sources */,
@@ -274,10 +278,10 @@
 			buildSettings = {
 				ALWAYS_SEARCH_USER_PATHS = NO;
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 20;
+				CURRENT_PROJECT_VERSION = 21;
 				DEVELOPMENT_TEAM = "";
 				GENERATE_INFOPLIST_FILE = NO;
-				MARKETING_VERSION = 1.0.19;
+				MARKETING_VERSION = 1.0.20;
 				PRODUCT_BUNDLE_IDENTIFIER = io.github.codexusagemeter;
 				SDKROOT = macosx;
 				SWIFT_VERSION = 6.0;
@@ -301,10 +305,10 @@
 			buildSettings = {
 				ALWAYS_SEARCH_USER_PATHS = NO;
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 20;
+				CURRENT_PROJECT_VERSION = 21;
 				DEVELOPMENT_TEAM = "";
 				GENERATE_INFOPLIST_FILE = NO;
-				MARKETING_VERSION = 1.0.19;
+				MARKETING_VERSION = 1.0.20;
 				PRODUCT_BUNDLE_IDENTIFIER = io.github.codexusagemeter;
 				SDKROOT = macosx;
 				SWIFT_VERSION = 6.0;

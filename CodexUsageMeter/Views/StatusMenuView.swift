@@ -127,7 +127,7 @@ private struct LimitCardView: View {
                 .tint(progressTint)
 
             HStack {
-                Label("Codex reports \(window.remainingPercentString)", systemImage: "chart.bar.fill")
+                Label("Remaining \(window.remainingPercentString)", systemImage: "chart.bar.fill")
                 Spacer()
                 Label(resetText, systemImage: "timer")
             }

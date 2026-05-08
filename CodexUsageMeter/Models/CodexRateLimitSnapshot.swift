@@ -1,7 +1,7 @@
 import Foundation
 
-public struct CodexRateLimitSnapshot: Equatable {
-    public enum ActivityStatus: Equatable {
+public struct CodexRateLimitSnapshot: Equatable, Sendable {
+    public enum ActivityStatus: Equatable, Sendable {
         case working
         case done
 
@@ -15,13 +15,13 @@ public struct CodexRateLimitSnapshot: Equatable {
         }
     }
 
-    public struct Window: Equatable {
+    public struct Window: Equatable, Sendable {
         public let usedPercent: Double
         public let windowMinutes: Int
         public let resetsAt: Date
 
         public var remainingPercent: Double {
-            min(max(usedPercent, 0), 100)
+            max(0, 100 - usedPercent)
         }
 
         public var remainingPercentString: String {

@@ -8,12 +8,14 @@ final class RateLimitMonitor: ObservableObject {
     @Published private(set) var isRefreshing = false
 
     private let scanner: CodexSessionScanner
+    private let rpcClient: CodexRPCUsageClient
     private var refreshTask: Task<Void, Never>?
     private var timerCancellable: AnyCancellable?
     private var statusTimerCancellable: AnyCancellable?
 
-    init(scanner: CodexSessionScanner = CodexSessionScanner()) {
+    init(scanner: CodexSessionScanner = CodexSessionScanner(), rpcClient: CodexRPCUsageClient = CodexRPCUsageClient()) {
         self.scanner = scanner
+        self.rpcClient = rpcClient
         reloadTimer()
         reloadStatusTimer()
         refresh()
@@ -29,7 +31,14 @@ final class RateLimitMonitor: ObservableObject {
 
             do {
                 let directoryURL = AppPreferences.sessionsDirectoryURL
-                let latest = try scanner.latestSnapshot(in: directoryURL)
+                let latest = try await Task.detached(priority: .utility) {
+                    let scanner = CodexSessionScanner()
+                    let status = try? scanner.latestSessionStatus(in: directoryURL, maximumFilesToInspect: 3, tailByteCount: 65_536)
+                    if let rpcSnapshot = try? CodexRPCUsageClient().latestSnapshot(status: status) {
+                        return rpcSnapshot
+                    }
+                    return try scanner.latestSnapshot(in: directoryURL)
+                }.value
                 snapshot = latest
                 errorMessage = nil
             } catch {
